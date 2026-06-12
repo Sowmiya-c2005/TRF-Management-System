@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from database import SessionLocal
 from models import TRFRecord
 from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import FileResponse
 import shutil
 import os
 
@@ -195,3 +196,48 @@ def update_trf(
     return {
         "message": "TRF Updated Successfully"
     }
+@app.delete("/delete-file/{trf_number}/{folder_name}/{file_name}")
+def delete_file(
+    trf_number: str,
+    folder_name: str,
+    file_name: str
+):
+
+    file_path = os.path.join(
+        trf_number,
+        folder_name,
+        file_name
+    )
+
+    if not os.path.exists(file_path):
+        return {
+            "message": "File Not Found"
+        }
+
+    os.remove(file_path)
+
+    return {
+        "message": "File Deleted Successfully"
+    }
+@app.get("/download-file/{trf_number}/{folder_name}/{file_name}")
+def download_file(
+    trf_number: str,
+    folder_name: str,
+    file_name: str
+):
+
+    file_path = os.path.join(
+        trf_number,
+        folder_name,
+        file_name
+    )
+
+    if not os.path.exists(file_path):
+        return {
+            "message": "File Not Found"
+        }
+
+    return FileResponse(
+        path=file_path,
+        filename=file_name
+    )
