@@ -4,10 +4,18 @@ from database import SessionLocal
 from models import TRFRecord
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 import shutil
 import os
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class TRF(BaseModel):
     trf_number: str
@@ -17,7 +25,7 @@ class TRF(BaseModel):
 def home():
     return {"message": "TRF Management System Running Successfully"}
 
-@app.post("/create-trf")
+
 @app.get("/search-trf/{trf_number}")
 def search_trf(trf_number: str):
 
@@ -37,6 +45,7 @@ def search_trf(trf_number: str):
         "project_name": trf.project_name,
         "created_at": trf.created_at
     }
+@app.post("/create-trf")
 def create_trf(trf: TRF):
 
     db = SessionLocal()
@@ -241,3 +250,13 @@ def download_file(
         path=file_path,
         filename=file_name
     )
+@app.get("/dashboard-stats")
+def dashboard_stats():
+
+    db = SessionLocal()
+
+    total_trfs = db.query(TRFRecord).count()
+
+    return {
+        "total_trfs": total_trfs
+    }
