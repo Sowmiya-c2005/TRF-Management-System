@@ -22,6 +22,11 @@ function Sidebar() {
     Update TRF
   </Link>
 </p>
+<p>
+  <Link to="/login">
+    Login
+  </Link>
+</p>
 </div>
   );
 }

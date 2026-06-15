@@ -2,10 +2,10 @@ function Navbar() {
   return (
     <div
       style={{
-        background: "#1976d2",
+        backgroundColor: "#1976d2",
         color: "white",
         padding: "15px",
-        fontSize: "22px",
+        fontSize: "24px",
         fontWeight: "bold"
       }}
     >

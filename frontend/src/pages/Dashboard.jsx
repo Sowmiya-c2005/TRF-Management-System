@@ -8,7 +8,22 @@ import { useEffect, useState } from "react";
 import API from "../services/api";
 
 function Dashboard() {
+   const [stats, setStats] = useState({
+  total_trfs: 0
+});
 
+useEffect(() => {
+  loadStats();
+}, []);
+
+const loadStats = async () => {
+
+  const response = await API.get(
+    "/dashboard-stats"
+  );
+
+  setStats(response.data);
+};
   const cards = [
     {
       title: "Total TRFs",
@@ -27,22 +42,7 @@ function Dashboard() {
       value: "12 GB"
     }
   ];
-  const [stats, setStats] = useState({
-  total_trfs: 0
-});
-
-useEffect(() => {
-  loadStats();
-}, []);
-
-const loadStats = async () => {
-
-  const response = await API.get(
-    "/dashboard-stats"
-  );
-
-  setStats(response.data);
-};
+ 
 
   return (
     <div>

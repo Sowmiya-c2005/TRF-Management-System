@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Layout from "./components/Layout";
-
+import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import CreateTRF from "./pages/CreateTRF";
 import SearchTRF from "./pages/SearchTRF";
@@ -23,6 +23,10 @@ function App() {
 />        <Route
   path="/update"
   element={<UpdateTRF />}
+/>
+<Route
+  path="/login"
+  element={<Login />}
 />
         </Routes>
       </Layout>

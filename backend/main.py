@@ -1,10 +1,11 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from database import SessionLocal
-from models import TRFRecord
+from models import TRFRecord, User
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+
 import shutil
 import os
 
@@ -259,4 +260,65 @@ def dashboard_stats():
 
     return {
         "total_trfs": total_trfs
+    }
+
+@app.post("/register")
+def register(
+    username: str,
+    password: str
+):
+
+    db = SessionLocal()
+
+    existing_user = db.query(User).filter(
+        User.username == username
+    ).first()
+
+    if existing_user:
+        return {
+            "message": "User Already Exists"
+        }
+
+    new_user = User(
+        username=username,
+        password=password,
+        role="Engineer"
+    )
+
+    db.add(new_user)
+    db.commit()
+
+
+    return {
+        "message": "User Created Successfully"
+    }
+    return {
+        "message": "User Created"
+    }
+@app.post("/login")
+def login(
+    username: str,
+    password: str
+):
+
+    db = SessionLocal()
+
+    user = db.query(User).filter(
+        User.username == username
+    ).first()
+
+    if not user:
+        return {
+            "message": "User Not Found"
+        }
+
+    if user.password != password:
+        return {
+            "message": "Invalid Password"
+        }
+
+    return {
+        "message": "Login Successful",
+        "username": user.username,
+        "role": user.role
     }
