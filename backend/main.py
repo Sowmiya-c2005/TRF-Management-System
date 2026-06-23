@@ -1,324 +1,122 @@
+"""
+TRF Management System — FastAPI entry point.
+Run with:  uvicorn backend.main:app --reload
+"""
 from fastapi import FastAPI
-from pydantic import BaseModel
-from database import SessionLocal
-from models import TRFRecord, User
-from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-
-import shutil
+from dotenv import load_dotenv
 import os
 
-app = FastAPI()
+load_dotenv()
+
+from backend.api import trf_routes, file_routes, user_routes
+
+app = FastAPI(
+    title="TRF Management System",
+    description="Document & Record Tracking API",
+    version="2.0.0",
+)
+
+# ── CORS ──────────────────────────────────────────────────────────────────────
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-class TRF(BaseModel):
-    trf_number: str
-    project_name: str
+# ── Routers ───────────────────────────────────────────────────────────────────
+app.include_router(trf_routes.router)
+app.include_router(file_routes.router)
+app.include_router(user_routes.router)
+
+
+# ── Legacy compatibility shim ─────────────────────────────────────────────────
+# These thin wrappers keep the old frontend URLs working while the frontend
+# migrates to the new /trfs / /files / /users paths.
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
+from backend.database.database import get_db
+from backend.schemas.trf_schema import TRFCreate, TRFUpdate
+from backend.services import trf_service, file_service, user_service
+from fastapi import File, UploadFile
+from fastapi.responses import FileResponse
+
 
 @app.get("/")
-def home():
-    return {"message": "TRF Management System Running Successfully"}
+def health():
+    return {"message": "TRF Management System Running Successfully", "version": "2.0.0"}
+
+
+@app.get("/all-trfs")
+def legacy_all_trfs(db: Session = Depends(get_db)):
+    return trf_service.get_all_trfs(db)
+
+
+@app.get("/dashboard-stats")
+def legacy_dashboard_stats(db: Session = Depends(get_db)):
+    return trf_service.get_dashboard_stats(db)
 
 
 @app.get("/search-trf/{trf_number}")
-def search_trf(trf_number: str):
+def legacy_search_trf(trf_number: str, db: Session = Depends(get_db)):
+    return trf_service.get_trf_by_number(db, trf_number)
 
-    db = SessionLocal()
 
-    trf = db.query(TRFRecord).filter(
-        TRFRecord.trf_number == trf_number
-    ).first()
-
-    if not trf:
-        return {
-            "message": "TRF Not Found"
-        }
-
-    return {
-        "trf_number": trf.trf_number,
-        "project_name": trf.project_name,
-        "created_at": trf.created_at
-    }
 @app.post("/create-trf")
-def create_trf(trf: TRF):
+def legacy_create_trf(payload: TRFCreate, db: Session = Depends(get_db)):
+    trf = trf_service.create_trf(db, payload)
+    return {"message": "TRF Created Successfully", "trf_number": trf.trf_number}
 
-    db = SessionLocal()
 
-    existing_trf = db.query(TRFRecord).filter(
-        TRFRecord.trf_number == trf.trf_number
-    ).first()
-
-    if existing_trf:
-        return {
-            "message": "TRF Already Exists In Database"
-        }
-
-    new_trf = TRFRecord(
-        trf_number=trf.trf_number,
-        project_name=trf.project_name
-    )
-
-    db.add(new_trf)
-    db.commit()
-
-    root_folder = trf.trf_number
-
-    subfolders = [
-        "Documents",
-        "Reports",
-        "Drawings",
-        "Approvals",
-        "Final Submission"
-    ]
-
-    if not os.path.exists(root_folder):
-
-        os.mkdir(root_folder)
-
-        for folder in subfolders:
-            os.mkdir(os.path.join(root_folder, folder))
-
-    return {
-        "message": "TRF Created Successfully",
-        "trf_number": trf.trf_number
-    }
-@app.get("/all-trfs")
-def get_all_trfs():
-
-    db = SessionLocal()
-
-    trfs = db.query(TRFRecord).all()
-
-    result = []
-
-    for trf in trfs:
-        result.append({
-            "id": trf.id,
-            "trf_number": trf.trf_number,
-            "project_name": trf.project_name,
-            "created_at": trf.created_at
-        })
-
-    return result
-@app.delete("/delete-trf/{trf_number}")
-def delete_trf(trf_number: str):
-
-    db = SessionLocal()
-
-    trf = db.query(TRFRecord).filter(
-        TRFRecord.trf_number == trf_number
-    ).first()
-
-    if not trf:
-        return {
-            "message": "TRF Not Found"
-        }
-
-    db.delete(trf)
-    db.commit()
-
-    return {
-        "message": "TRF Deleted Successfully"
-    }
-@app.post("/upload-file/{trf_number}/{folder_name}")
-def upload_file(
-    trf_number: str,
-    folder_name: str,
-    file: UploadFile = File(...)
-):
-
-    folder_path = os.path.join(
-        trf_number,
-        folder_name
-    )
-
-    if not os.path.exists(folder_path):
-        return {
-            "message": "Folder Not Found"
-        }
-
-    file_path = os.path.join(
-        folder_path,
-        file.filename
-    )
-
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(
-            file.file,
-            buffer
-        )
-
-    return {
-        "message": "File Uploaded Successfully",
-        "file_name": file.filename
-    }
-@app.get("/files/{trf_number}/{folder_name}")
-def get_files(
-    trf_number: str,
-    folder_name: str
-):
-
-    folder_path = os.path.join(
-        trf_number,
-        folder_name
-    )
-
-    if not os.path.exists(folder_path):
-        return {
-            "message": "Folder Not Found"
-        }
-
-    files = os.listdir(folder_path)
-
-    return {
-        "trf_number": trf_number,
-        "folder_name": folder_name,
-        "files": files
-    }
 @app.put("/update-trf/{trf_number}")
-def update_trf(
-    trf_number: str,
-    project_name: str
-):
+def legacy_update_trf(trf_number: str, project_name: str, db: Session = Depends(get_db)):
+    trf = trf_service.update_trf(db, trf_number, project_name)
+    return {"message": "TRF Updated Successfully"}
 
-    db = SessionLocal()
 
-    trf = db.query(TRFRecord).filter(
-        TRFRecord.trf_number == trf_number
-    ).first()
+@app.delete("/delete-trf/{trf_number}")
+def legacy_delete_trf(trf_number: str, db: Session = Depends(get_db)):
+    trf_service.delete_trf(db, trf_number)
+    return {"message": "TRF Deleted Successfully"}
 
-    if not trf:
-        return {
-            "message": "TRF Not Found"
-        }
 
-    trf.project_name = project_name
+@app.post("/upload-file/{trf_number}/{folder_name}")
+def legacy_upload_file(trf_number: str, folder_name: str, file: UploadFile = File(...)):
+    saved = file_service.save_file(trf_number, folder_name, file)
+    return {"message": "File Uploaded Successfully", "file_name": saved}
 
-    db.commit()
 
-    return {
-        "message": "TRF Updated Successfully"
-    }
+@app.get("/files/{trf_number}/{folder_name}")
+def legacy_get_files(trf_number: str, folder_name: str):
+    files = file_service.list_files(trf_number, folder_name)
+    return {"trf_number": trf_number, "folder_name": folder_name, "files": files}
+
+
 @app.delete("/delete-file/{trf_number}/{folder_name}/{file_name}")
-def delete_file(
-    trf_number: str,
-    folder_name: str,
-    file_name: str
-):
+def legacy_delete_file(trf_number: str, folder_name: str, file_name: str):
+    file_service.remove_file(trf_number, folder_name, file_name)
+    return {"message": "File Deleted Successfully"}
 
-    file_path = os.path.join(
-        trf_number,
-        folder_name,
-        file_name
-    )
 
-    if not os.path.exists(file_path):
-        return {
-            "message": "File Not Found"
-        }
-
-    os.remove(file_path)
-
-    return {
-        "message": "File Deleted Successfully"
-    }
 @app.get("/download-file/{trf_number}/{folder_name}/{file_name}")
-def download_file(
-    trf_number: str,
-    folder_name: str,
-    file_name: str
-):
+def legacy_download_file(trf_number: str, folder_name: str, file_name: str):
+    path = file_service.get_file_path(trf_number, folder_name, file_name)
+    return FileResponse(path=path, filename=file_name)
 
-    file_path = os.path.join(
-        trf_number,
-        folder_name,
-        file_name
-    )
 
-    if not os.path.exists(file_path):
-        return {
-            "message": "File Not Found"
-        }
+@app.post("/login")
+def legacy_login(username: str, password: str, db: Session = Depends(get_db)):
+    user = user_service.authenticate_user(db, username, password)
+    return {"message": "Login Successful", "username": user.username, "role": user.role}
 
-    return FileResponse(
-        path=file_path,
-        filename=file_name
-    )
-@app.get("/dashboard-stats")
-def dashboard_stats():
-
-    db = SessionLocal()
-
-    total_trfs = db.query(TRFRecord).count()
-
-    return {
-        "total_trfs": total_trfs
-    }
 
 @app.post("/register")
-def register(
-    username: str,
-    password: str
-):
-
-    db = SessionLocal()
-
-    existing_user = db.query(User).filter(
-        User.username == username
-    ).first()
-
-    if existing_user:
-        return {
-            "message": "User Already Exists"
-        }
-
-    new_user = User(
-        username=username,
-        password=password,
-        role="Engineer"
-    )
-
-    db.add(new_user)
-    db.commit()
-
-
-    return {
-        "message": "User Created Successfully"
-    }
-    return {
-        "message": "User Created"
-    }
-@app.post("/login")
-def login(
-    username: str,
-    password: str
-):
-
-    db = SessionLocal()
-
-    user = db.query(User).filter(
-        User.username == username
-    ).first()
-
-    if not user:
-        return {
-            "message": "User Not Found"
-        }
-
-    if user.password != password:
-        return {
-            "message": "Invalid Password"
-        }
-
-    return {
-        "message": "Login Successful",
-        "username": user.username,
-        "role": user.role
-    }
+def legacy_register(username: str, password: str, db: Session = Depends(get_db)):
+    from backend.schemas.user_schema import UserCreate
+    user_service.register_user(db, UserCreate(username=username, password=password))
+    return {"message": "User Created Successfully"}
