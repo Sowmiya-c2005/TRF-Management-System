@@ -6,6 +6,7 @@
  *  - activity feed (shared across Dashboard & Notifications)
  */
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import API from "../services/api";
 
 // ─── Initial data ────────────────────────────────────────────────────────────
 
@@ -59,22 +60,100 @@ const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
   const [user, setUser] = useState(loadUser);
-  const [notifications, setNotifications] = useState(SEED_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
   const [activities, setActivities] = useState(SEED_ACTIVITIES);
   const [prefs, setPrefsState] = useState(loadPrefs);
+
+  // ── Fetch Notifications from Backend ──────────────────────────────────────
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await API.get("/notifications/");
+      const mapped = res.data.map((n) => ({
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        read: n.read,
+        type: n.type || "trf",
+        time: new Date(n.created_at),
+        color:
+          n.type === "trf"
+            ? "#6366f1"
+            : n.type === "file"
+            ? "#10b981"
+            : n.type === "user"
+            ? "#f59e0b"
+            : "#a855f7",
+      }));
+      setNotifications(mapped);
+    } catch (e) {
+      console.error("Failed to fetch notifications:", e);
+    }
+  }, [user]);
+
+  // ── Fetch Activities / Audit Logs for Admin ──────────────────────────────
+  const fetchActivities = useCallback(async () => {
+    if (!user || user.role !== "Admin") return;
+    try {
+      const res = await API.get("/audits/");
+      const mapped = res.data.map((log) => ({
+        id: log.id,
+        action: log.details || log.action,
+        user: log.username,
+        time: new Date(log.created_at),
+        color: log.action.includes("CREATE")
+          ? "#6366f1"
+          : log.action.includes("DELETE")
+          ? "#ef4444"
+          : "#f59e0b",
+      }));
+      setActivities(mapped);
+    } catch (e) {
+      console.error("Failed to fetch activities:", e);
+    }
+  }, [user]);
+
+  // Sync data on user login/status changes
+  useEffect(() => {
+    if (user) {
+      fetchNotifications();
+      fetchActivities();
+
+      const notifTimer = setInterval(fetchNotifications, 15000);
+      const activityTimer = setInterval(fetchActivities, 30000);
+
+      return () => {
+        clearInterval(notifTimer);
+        clearInterval(activityTimer);
+      };
+    } else {
+      setNotifications([]);
+      setActivities(SEED_ACTIVITIES);
+    }
+  }, [user, fetchNotifications, fetchActivities]);
 
   // ── Notification helpers ──────────────────────────────────────────────────
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markRead = useCallback((id) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+  const markRead = useCallback(async (id) => {
+    try {
+      await API.put(`/notifications/${id}/read`);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      );
+    } catch (e) {
+      console.error("Failed to mark notification as read:", e);
+    }
   }, []);
 
-  const markAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  const markAllRead = useCallback(async () => {
+    try {
+      await API.put("/notifications/read-all");
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (e) {
+      console.error("Failed to mark all notifications as read:", e);
+    }
   }, []);
 
   const addNotification = useCallback((notif) => {
@@ -100,6 +179,9 @@ export function AppProvider({ children }) {
       avatar: userData.avatar || null,
       joinedAt: userData.joinedAt || new Date().toISOString(),
     };
+    if (userData.token) {
+      localStorage.setItem("token", userData.token);
+    }
     localStorage.setItem("authUser", JSON.stringify(enriched));
     setUser(enriched);
   }, []);
@@ -114,8 +196,10 @@ export function AppProvider({ children }) {
 
   const signOut = useCallback(() => {
     localStorage.removeItem("authUser");
+    localStorage.removeItem("token");
     setUser(null);
   }, []);
+
 
   // ── Preferences helpers ────────────────────────────────────────────────────
 

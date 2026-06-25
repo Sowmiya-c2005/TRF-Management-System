@@ -1,69 +1,151 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
+
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import Grid from "@mui/material/Grid";
+import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
 import Avatar from "@mui/material/Avatar";
 import Chip from "@mui/material/Chip";
-import Button from "@mui/material/Button";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import TextField from "@mui/material/TextField";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
-import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
 import CircularProgress from "@mui/material/CircularProgress";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
+import InputLabel from "@mui/material/InputLabel";
 import toast from "react-hot-toast";
 
-import AddRoundedIcon          from "@mui/icons-material/AddRounded";
-import PersonRoundedIcon       from "@mui/icons-material/PersonRounded";
-import LockRoundedIcon         from "@mui/icons-material/LockRounded";
+import PeopleRoundedIcon       from "@mui/icons-material/PeopleRounded";
+import PersonAddRoundedIcon    from "@mui/icons-material/PersonAddRounded";
+import SearchRoundedIcon       from "@mui/icons-material/SearchRounded";
 import VisibilityRoundedIcon   from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
-import RefreshRoundedIcon      from "@mui/icons-material/RefreshRounded";
+import StarRoundedIcon         from "@mui/icons-material/StarRounded";
 
 import { register } from "../services/userService";
-import { useApp } from "../context/AppContext";
+import { useApp }   from "../context/AppContext";
 
-const ROLE_COLORS = {
-  Administrator: { bg: "rgba(99,102,241,0.12)",  color: "#818cf8" },
-  Engineer:      { bg: "rgba(6,182,212,0.12)",   color: "#22d3ee" },
-  Viewer:        { bg: "rgba(16,185,129,0.12)",  color: "#34d399" },
-  Manager:       { bg: "rgba(245,158,11,0.12)",  color: "#fbbf24" },
+const ROLE_META = {
+  Admin:    { color: "#6366f1", bg: "rgba(99,102,241,0.12)" },
+  Engineer: { color: "#06b6d4", bg: "rgba(6,182,212,0.12)" },
+  Manager:  { color: "#10b981", bg: "rgba(16,185,129,0.12)" },
+  Viewer:   { color: "#94a3b8", bg: "rgba(148,163,184,0.1)" },
 };
 
-const AVATAR_COLORS = ["#6366f1","#06b6d4","#10b981","#f59e0b","#a855f7","#ef4444","#ec4899"];
-
-function avatarColor(name = "") {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+function avatarColor(name) {
+  const colors = ["#6366f1", "#06b6d4", "#10b981", "#f59e0b", "#a855f7", "#ef4444"];
+  let h = 0; for (const c of name) h = c.charCodeAt(0) + h * 31;
+  return colors[Math.abs(h) % colors.length];
 }
 
-// ─── Invite dialog ────────────────────────────────────────────────────────────
-function InviteDialog({ open, onClose, onSuccess }) {
+function UserCard({ u, isCurrentUser, isDark, border }) {
+  const theme = useTheme();
+  const color = avatarColor(u.username);
+  const initials = (u.displayName || u.username).split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const role = u.role || "Engineer";
+  const roleMeta = ROLE_META[role] || ROLE_META.Viewer;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 18, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} whileHover={{ y: -3 }}>
+      <Box sx={{
+        p: 3, borderRadius: "18px",
+        background: isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.88)",
+        border: `1px solid ${border}`, backdropFilter: "blur(20px)",
+        position: "relative", overflow: "hidden",
+        transition: "box-shadow 0.2s",
+        "&:hover": { boxShadow: isDark ? "0 12px 36px rgba(0,0,0,0.35)" : "0 12px 36px rgba(15,23,42,0.1)" },
+      }}>
+        {isCurrentUser && (
+          <Box sx={{
+            position: "absolute", top: 12, right: 12,
+            display: "flex", alignItems: "center", gap: 0.5,
+            px: 1, py: 0.25, borderRadius: "20px",
+            background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.25)",
+          }}>
+            <StarRoundedIcon sx={{ fontSize: 11, color: "#f59e0b" }} />
+            <Typography sx={{ fontSize: "0.64rem", color: "#f59e0b", fontWeight: 700 }}>You</Typography>
+          </Box>
+        )}
+
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+          <Avatar sx={{
+            width: 48, height: 48, fontSize: "1.1rem", fontWeight: 700,
+            background: `linear-gradient(135deg,${color},${color}99)`,
+            boxShadow: `0 4px 14px ${color}40`,
+          }}>
+            {initials}
+          </Avatar>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: "0.92rem", color: theme.palette.text.primary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {u.displayName || u.username}
+            </Typography>
+            <Typography sx={{ fontSize: "0.75rem", color: theme.palette.text.secondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {u.email || `${u.username}@trf.com`}
+            </Typography>
+          </Box>
+        </Box>
+
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Chip
+            label={role}
+            size="small"
+            sx={{ fontSize: "0.7rem", fontWeight: 700, background: roleMeta.bg, color: roleMeta.color, border: `1px solid ${roleMeta.color}28` }}
+          />
+          <Chip
+            label="Active"
+            size="small"
+            sx={{ fontSize: "0.7rem", background: "rgba(16,185,129,0.1)", color: "#10b981", border: "1px solid rgba(16,185,129,0.22)" }}
+          />
+        </Box>
+      </Box>
+    </motion.div>
+  );
+}
+
+export default function Users() {
   const theme  = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const [username,  setUsername]  = useState("");
-  const [password,  setPassword]  = useState("");
-  const [showPass,  setShowPass]  = useState(false);
-  const [loading,   setLoading]   = useState(false);
+  const { user } = useApp();
 
-  const reset = () => { setUsername(""); setPassword(""); setShowPass(false); };
+  const [users,       setUsers]       = useState([]);
+  const [search,      setSearch]      = useState("");
+  const [inviteOpen,  setInviteOpen]  = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole,     setNewRole]     = useState("Engineer");
+  const [showPwd,     setShowPwd]     = useState(false);
+  const [loading,     setLoading]     = useState(false);
 
-  const handleClose = () => { reset(); onClose(); };
+  const border = isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.2)";
 
-  const handleSubmit = async () => {
-    if (!username.trim()) { toast.error("Username is required"); return; }
-    if (password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+  // Seed with current user
+  useEffect(() => {
+    if (user) {
+      setUsers([{ username: user.username, displayName: user.displayName, email: user.email, role: user.role }]);
+    }
+  }, [user]);
+
+  const filtered = search.trim()
+    ? users.filter(u => u.username.toLowerCase().includes(search.toLowerCase()) || (u.displayName || "").toLowerCase().includes(search.toLowerCase()))
+    : users;
+
+  const handleInvite = async () => {
+    if (!newUsername.trim() || !newPassword) { toast.error("Fill in all fields"); return; }
     setLoading(true);
     try {
-      await register(username.trim(), password);
-      toast.success(`User "${username.trim()}" registered successfully!`);
-      onSuccess({ username: username.trim(), role: "Engineer" });
-      handleClose();
+      await register(newUsername.trim(), newPassword);
+      const newUser = { username: newUsername.trim(), displayName: newUsername.trim(), email: `${newUsername.trim()}@trf.com`, role: newRole };
+      setUsers(prev => [newUser, ...prev]);
+      toast.success(`${newUsername.trim()} added!`);
+      setInviteOpen(false);
+      setNewUsername(""); setNewPassword(""); setNewRole("Engineer");
     } catch (e) {
       toast.error(e.message || "Registration failed");
     } finally {
@@ -72,237 +154,139 @@ function InviteDialog({ open, onClose, onSuccess }) {
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      PaperProps={{
-        sx: {
-          borderRadius: "18px", width: 400,
-          background: isDark ? "rgba(10,15,30,0.97)" : "#fff",
-          backdropFilter: "blur(30px)",
-          border: `1px solid ${isDark ? "rgba(148,163,184,0.12)" : "rgba(148,163,184,0.25)"}`,
-          boxShadow: isDark ? "0 32px 64px rgba(0,0,0,0.5)" : "0 32px 64px rgba(15,23,42,0.14)",
-        },
-      }}
-    >
-      <DialogTitle sx={{ fontWeight: 700, fontSize: "1.05rem", pb: 1 }}>
-        Invite New User
-      </DialogTitle>
-      <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "8px !important" }}>
-        <TextField
-          label="Username" autoFocus
-          value={username} onChange={(e) => setUsername(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          InputProps={{
-            startAdornment: <InputAdornment position="start"><PersonRoundedIcon sx={{ fontSize: 17 }} /></InputAdornment>,
-            sx: { borderRadius: "10px" },
-          }}
-        />
-        <TextField
-          label="Password"
-          type={showPass ? "text" : "password"}
-          value={password} onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          helperText="Minimum 6 characters"
-          InputProps={{
-            startAdornment: <InputAdornment position="start"><LockRoundedIcon sx={{ fontSize: 17 }} /></InputAdornment>,
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton size="small" onClick={() => setShowPass((v) => !v)}>
-                  {showPass ? <VisibilityOffRoundedIcon sx={{ fontSize: 16 }} /> : <VisibilityRoundedIcon sx={{ fontSize: 16 }} />}
-                </IconButton>
-              </InputAdornment>
-            ),
-            sx: { borderRadius: "10px" },
-          }}
-        />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-        <Button onClick={handleClose} sx={{ borderRadius: "10px" }}>Cancel</Button>
-        <Button
-          variant="contained" onClick={handleSubmit} disabled={loading}
-          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <AddRoundedIcon />}
-          sx={{ borderRadius: "10px", background: "linear-gradient(135deg,#6366f1,#06b6d4)" }}
-        >
-          {loading ? "Creating…" : "Create User"}
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-// ─── Main page ────────────────────────────────────────────────────────────────
-const stagger = { animate: { transition: { staggerChildren: 0.07 } } };
-const fadeUp  = { initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0, transition: { duration: 0.32 } } };
-
-// Fallback local user list — used when API doesn't return a /users list endpoint
-// (the backend only has /register and /login — there's no GET /users endpoint yet)
-const FALLBACK_USERS = [
-  { id: 1, username: "admin",  displayName: "Admin User",    email: "admin@trf.com",    role: "Administrator", status: "Active" },
-  { id: 2, username: "john",   displayName: "John Engineer", email: "john@trf.com",     role: "Engineer",      status: "Active" },
-  { id: 3, username: "sarah",  displayName: "Sarah Viewer",  email: "sarah@trf.com",    role: "Viewer",        status: "Active" },
-  { id: 4, username: "mike",   displayName: "Mike Manager",  email: "mike@trf.com",     role: "Manager",       status: "Inactive" },
-];
-
-export default function Users() {
-  const theme  = useTheme();
-  const isDark = theme.palette.mode === "dark";
-  const { user: currentUser, addActivity, addNotification } = useApp();
-
-  const [users,       setUsers]       = useState(FALLBACK_USERS);
-  const [inviteOpen,  setInviteOpen]  = useState(false);
-  const [loading,     setLoading]     = useState(false);
-
-  const cardBg = isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.88)";
-  const border = isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.2)";
-
-  // Merge current logged-in user into list so it's always shown
-  useEffect(() => {
-    if (currentUser?.username) {
-      setUsers((prev) => {
-        const exists = prev.some((u) => u.username === currentUser.username);
-        if (exists) return prev.map((u) =>
-          u.username === currentUser.username
-            ? { ...u, displayName: currentUser.displayName || currentUser.username, email: currentUser.email, role: currentUser.role }
-            : u
-        );
-        return [
-          { id: Date.now(), username: currentUser.username, displayName: currentUser.displayName || currentUser.username,
-            email: currentUser.email || `${currentUser.username}@trf.com`, role: currentUser.role || "Administrator", status: "Active" },
-          ...prev,
-        ];
-      });
-    }
-  }, [currentUser]);
-
-  const handleInviteSuccess = ({ username, role }) => {
-    const newUser = {
-      id: Date.now(), username, displayName: username,
-      email: `${username}@trf.com`, role, status: "Active",
-    };
-    setUsers((prev) => [newUser, ...prev]);
-    addActivity(`New user "${username}" registered`, currentUser?.username || "Admin");
-    addNotification({ title: `New user registered`, body: `${username} joined as ${role}`, color: "#f59e0b", type: "user" });
-  };
-
-  return (
-    <motion.div variants={stagger} initial="initial" animate="animate">
-
+    <Box>
       {/* Header */}
-      <motion.div variants={fadeUp}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", mb: 4, flexWrap: "wrap", gap: 2 }}>
-          <Box>
-            <Typography variant="h4" sx={{ fontWeight: 800, fontSize: "1.6rem", color: theme.palette.text.primary }}>
-              User Management
-            </Typography>
-            <Typography variant="body2" sx={{ color: theme.palette.text.secondary, mt: 0.5 }}>
-              {users.length} registered user{users.length !== 1 ? "s" : ""}
-            </Typography>
+      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 4, flexWrap: "wrap", gap: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <Box sx={{
+              width: 44, height: 44, borderRadius: "13px",
+              background: "linear-gradient(135deg,#a855f7,#6366f1)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 8px 20px rgba(168,85,247,0.35)",
+            }}>
+              <PeopleRoundedIcon sx={{ color: "#fff", fontSize: 22 }} />
+            </Box>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 800, fontSize: "1.65rem", color: theme.palette.text.primary, lineHeight: 1.2 }}>
+                User Management
+              </Typography>
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary, fontSize: "0.82rem" }}>
+                {users.length} member{users.length !== 1 ? "s" : ""} in the system
+              </Typography>
+            </Box>
           </Box>
-          <Box sx={{ display: "flex", gap: 1.5 }}>
-            <Tooltip title="Refresh">
-              <IconButton size="small" onClick={() => setLoading((v) => !v)}
-                sx={{ background: isDark ? "rgba(148,163,184,0.08)" : "rgba(100,116,139,0.08)", borderRadius: "10px" }}>
-                <RefreshRoundedIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
+          <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
             <Button
               variant="contained"
-              startIcon={<AddRoundedIcon />}
+              startIcon={<PersonAddRoundedIcon />}
               onClick={() => setInviteOpen(true)}
-              component={motion.button}
-              whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-              sx={{ background: "linear-gradient(135deg,#6366f1,#06b6d4)", borderRadius: "12px", boxShadow: "0 6px 16px rgba(99,102,241,0.3)" }}
+              sx={{
+                borderRadius: "12px", fontWeight: 700,
+                background: "linear-gradient(135deg,#6366f1,#06b6d4)",
+                boxShadow: "0 6px 18px rgba(99,102,241,0.35)",
+              }}
             >
               Invite User
             </Button>
-          </Box>
+          </motion.div>
         </Box>
       </motion.div>
 
-      {/* User list */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-        <AnimatePresence initial={false}>
-          {users.map((u) => {
-            const name    = u.displayName || u.username;
-            const initials = name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-            const color   = avatarColor(name);
-            const isCurrentUser = u.username === currentUser?.username;
+      {/* Search */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
+        <TextField
+          fullWidth size="small"
+          placeholder="Search by name or username…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          sx={{ mb: 3 }}
+          InputProps={{
+            startAdornment: <InputAdornment position="start"><SearchRoundedIcon sx={{ fontSize: 18 }} /></InputAdornment>,
+            sx: { borderRadius: "12px" },
+          }}
+        />
+      </motion.div>
 
-            return (
-              <motion.div
-                key={u.id}
-                variants={fadeUp}
-                layout
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-              >
-                <Box sx={{
-                  display: "flex", alignItems: "center", gap: 2, p: 2.5,
-                  borderRadius: "16px", background: cardBg,
-                  border: `1px solid ${isCurrentUser ? "rgba(99,102,241,0.3)" : border}`,
-                  backdropFilter: "blur(20px)",
-                  boxShadow: isCurrentUser ? "0 4px 16px rgba(99,102,241,0.1)" : "none",
-                  "&:hover": { borderColor: "rgba(99,102,241,0.25)", boxShadow: "0 8px 24px rgba(99,102,241,0.08)" },
-                  transition: "all 0.2s",
-                }}>
-                  <Avatar sx={{
-                    width: 44, height: 44, fontWeight: 700, fontSize: "0.9rem",
-                    background: u.avatar ? "transparent" : `${color}25`,
-                    color, border: `1.5px solid ${color}45`,
-                  }}>
-                    {u.avatar
-                      ? <Box component="img" src={u.avatar} sx={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} alt="" />
-                      : initials
-                    }
-                  </Avatar>
+      {/* User grid */}
+      <Grid container spacing={2}>
+        {filtered.map((u, i) => (
+          <Grid item xs={12} sm={6} lg={4} key={u.username}>
+            <UserCard u={u} isCurrentUser={u.username === user?.username} isDark={isDark} border={border} />
+          </Grid>
+        ))}
+        {filtered.length === 0 && (
+          <Grid item xs={12}>
+            <Box sx={{ py: 8, textAlign: "center" }}>
+              <Typography sx={{ color: theme.palette.text.secondary }}>No users found</Typography>
+            </Box>
+          </Grid>
+        )}
+      </Grid>
 
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
-                      <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: "0.88rem" }}>
-                        {name}
-                      </Typography>
-                      {isCurrentUser && (
-                        <Chip label="You" size="small" sx={{ height: 16, fontSize: "0.6rem", fontWeight: 700, background: "rgba(99,102,241,0.12)", color: "#818cf8" }} />
-                      )}
-                    </Box>
-                    <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: "0.75rem" }}>
-                      {u.email}
-                    </Typography>
-                  </Box>
-
-                  <Chip
-                    label={u.role}
-                    size="small"
-                    sx={{
-                      fontWeight: 700, fontSize: "0.7rem", height: 22,
-                      background: ROLE_COLORS[u.role]?.bg || "rgba(148,163,184,0.12)",
-                      color: ROLE_COLORS[u.role]?.color || "#94a3b8",
-                    }}
-                  />
-                  <Chip
-                    label={u.status}
-                    size="small"
-                    sx={{
-                      fontWeight: 700, fontSize: "0.7rem", height: 22,
-                      background: u.status === "Active" ? "rgba(16,185,129,0.12)" : "rgba(100,116,139,0.12)",
-                      color:      u.status === "Active" ? "#10b981" : "#64748b",
-                    }}
-                  />
-                </Box>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-      </Box>
-
-      {/* Invite dialog */}
-      <InviteDialog
+      {/* Invite Dialog */}
+      <Dialog
         open={inviteOpen}
-        onClose={() => setInviteOpen(false)}
-        onSuccess={handleInviteSuccess}
-      />
-    </motion.div>
+        onClose={() => !loading && setInviteOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: "22px", minWidth: 400, p: 1,
+            background: isDark ? "rgba(10,15,30,0.97)" : "#fff",
+            backdropFilter: "blur(30px)", border: `1px solid ${border}`,
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 800, fontSize: "1.05rem", pb: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <PersonAddRoundedIcon sx={{ color: "#6366f1" }} />
+            Invite New User
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
+          <TextField
+            label="Username" fullWidth
+            value={newUsername}
+            onChange={e => setNewUsername(e.target.value)}
+            InputProps={{ sx: { borderRadius: "12px" } }}
+          />
+          <TextField
+            label="Password" fullWidth
+            type={showPwd ? "text" : "password"}
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+            InputProps={{
+              sx: { borderRadius: "12px" },
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setShowPwd(v => !v)}>
+                    {showPwd ? <VisibilityOffRoundedIcon sx={{ fontSize: 16 }} /> : <VisibilityRoundedIcon sx={{ fontSize: 16 }} />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+          <FormControl fullWidth>
+            <InputLabel>Role</InputLabel>
+            <Select value={newRole} label="Role" onChange={e => setNewRole(e.target.value)} sx={{ borderRadius: "12px" }}>
+              {Object.keys(ROLE_META).map(r => (
+                <MenuItem key={r} value={r}>
+                  <Chip label={r} size="small" sx={{ fontSize: "0.7rem", background: ROLE_META[r].bg, color: ROLE_META[r].color }} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button onClick={() => setInviteOpen(false)} disabled={loading} sx={{ borderRadius: "10px" }}>Cancel</Button>
+          <Button
+            variant="contained" onClick={handleInvite} disabled={loading}
+            startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <PersonAddRoundedIcon />}
+            sx={{ borderRadius: "10px", background: "linear-gradient(135deg,#6366f1,#06b6d4)", boxShadow: "none" }}
+          >
+            {loading ? "Inviting…" : "Send Invite"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 }

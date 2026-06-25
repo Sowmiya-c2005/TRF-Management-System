@@ -17,7 +17,8 @@ const Analytics  = lazy(() => import("./pages/Analytics"));
 const Reports    = lazy(() => import("./pages/Reports"));
 const Users      = lazy(() => import("./pages/Users"));
 const Settings   = lazy(() => import("./pages/Settings"));
-const Profile    = lazy(() => import("./pages/Profile"));
+const Profile        = lazy(() => import('./pages/Profile'));
+const Notifications  = lazy(() => import('./pages/Notifications'));
 
 function PageLoader() {
   return (
@@ -27,23 +28,26 @@ function PageLoader() {
   );
 }
 
+import ProtectedRoute from "./components/ProtectedRoute";
+
 function AppRoutes() {
   return (
     <Suspense fallback={<PageLoader />}>
       <Routes>
-        <Route path="/"          element={<Dashboard />} />
-        <Route path="/create"    element={<CreateTRF />} />
-        <Route path="/search"    element={<SearchTRF />} />
-        <Route path="/all"       element={<AllTRFs />} />
-        <Route path="/upload"    element={<UploadFile />} />
-        <Route path="/files"     element={<FileManager />} />
-        <Route path="/update"    element={<UpdateTRF />} />
-        <Route path="/analytics" element={<Analytics />} />
-        <Route path="/reports"   element={<Reports />} />
-        <Route path="/users"     element={<Users />} />
-        <Route path="/settings"  element={<Settings />} />
-        <Route path="/profile"   element={<Profile />} />
-        <Route path="*"          element={<Navigate to="/" replace />} />
+        <Route path="/"          element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/create"    element={<ProtectedRoute allowedRoles={["Admin", "Engineer"]}><CreateTRF /></ProtectedRoute>} />
+        <Route path="/search"    element={<ProtectedRoute><SearchTRF /></ProtectedRoute>} />
+        <Route path="/all"       element={<ProtectedRoute><AllTRFs /></ProtectedRoute>} />
+        <Route path="/upload"    element={<ProtectedRoute allowedRoles={["Admin", "Engineer"]}><UploadFile /></ProtectedRoute>} />
+        <Route path="/files"     element={<ProtectedRoute><FileManager /></ProtectedRoute>} />
+        <Route path="/update"    element={<ProtectedRoute allowedRoles={["Admin", "Engineer"]}><UpdateTRF /></ProtectedRoute>} />
+        <Route path="/analytics" element={<ProtectedRoute allowedRoles={["Admin"]}><Analytics /></ProtectedRoute>} />
+        <Route path="/reports"   element={<ProtectedRoute allowedRoles={["Admin", "Engineer", "Manager"]}><Reports /></ProtectedRoute>} />
+        <Route path="/users"     element={<ProtectedRoute allowedRoles={["Admin"]}><Users /></ProtectedRoute>} />
+        <Route path="/settings"  element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/profile"        element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/notifications"  element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        <Route path="*"               element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   );
@@ -68,3 +72,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

@@ -26,7 +26,7 @@ FRONTEND_DIR = ROOT / "frontend"
 
 
 def run_backend() -> subprocess.Popen:
-    print("🚀  Starting FastAPI backend on http://127.0.0.1:8000 ...")
+    print("[BACKEND] Starting FastAPI backend on http://127.0.0.1:8000 ...")
     return subprocess.Popen(
         [
             sys.executable, "-m", "uvicorn",
@@ -40,7 +40,7 @@ def run_backend() -> subprocess.Popen:
 
 
 def run_frontend() -> subprocess.Popen:
-    print("⚡  Starting Vite frontend on http://localhost:5173 ...")
+    print("[FRONTEND] Starting Vite frontend on http://localhost:5173 ...")
     npm = "npm.cmd" if sys.platform == "win32" else "npm"
     return subprocess.Popen(
         [npm, "run", "dev"],
@@ -52,7 +52,7 @@ def main():
     processes: list[subprocess.Popen] = []
 
     def shutdown(sig=None, frame=None):
-        print("\n🛑  Shutting down all processes...")
+        print("\n[SYSTEM] Shutting down all processes...")
         for p in processes:
             p.terminate()
         sys.exit(0)
@@ -69,10 +69,10 @@ def main():
     frontend = run_frontend()
     processes.append(frontend)
 
-    print("\n✅  Both servers are running.")
-    print("   Backend  → http://127.0.0.1:8000")
-    print("   Frontend → http://localhost:5173")
-    print("   API Docs → http://127.0.0.1:8000/docs")
+    print("\n[SYSTEM] Both servers are running.")
+    print("   Backend  -> http://127.0.0.1:8000")
+    print("   Frontend -> http://localhost:5173")
+    print("   API Docs -> http://127.0.0.1:8000/docs")
     print("\n   Press Ctrl+C to stop.\n")
 
     # Wait until either process exits
@@ -80,7 +80,7 @@ def main():
         for p in processes:
             ret = p.poll()
             if ret is not None:
-                print(f"⚠️  A process exited with code {ret}. Shutting down...")
+                print(f"[SYSTEM] A process exited with code {ret}. Shutting down...")
                 shutdown()
         time.sleep(1)
 
