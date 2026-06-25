@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, TIMESTAMP, text
+from sqlalchemy.orm import relationship
 from backend.database.database import Base
 
 
@@ -13,3 +14,5 @@ class TRFRecord(Base):
         server_default=text("CURRENT_TIMESTAMP"),
         nullable=False
     )
+
+    folders = relationship("Folder", back_populates="trf", cascade="all, delete-orphan")

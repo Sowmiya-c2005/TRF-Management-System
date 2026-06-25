@@ -4,12 +4,15 @@ Run this once to create all database tables:
 """
 from backend.database.database import engine, Base
 
-# Import models so SQLAlchemy registers them before creating tables
-from backend.models import trf_model, user_model  # noqa: F401
+# Import all models to register them with Base before calling create_all
+import backend.models  # noqa: F401
+
 
 def main():
+    print("Creating all normalized database tables...")
     Base.metadata.create_all(bind=engine)
-    print("✅ All tables created successfully.")
+    print("SUCCESS: All tables created successfully.")
+
 
 if __name__ == "__main__":
     main()

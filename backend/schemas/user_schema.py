@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Literal
+from typing import Optional
 
 
 class UserCreate(BaseModel):
@@ -16,7 +16,20 @@ class UserResponse(BaseModel):
     message: str
     username: str
     role: str
+    token: Optional[str] = None
 
 
 class RegisterResponse(BaseModel):
     message: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    role: str
+    username: str
+
+
+class TokenData(BaseModel):
+    username: Optional[str] = None
+    role: Optional[str] = None
