@@ -69,11 +69,27 @@ export default function CreateTRF() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await createTRF(trfNumber.trim(), projectName.trim());
+      const res = await createTRF(trfNumber.trim(), projectName.trim());
       const actor = user?.username || "Admin";
+      const spStatus = res.data?.sharepoint_status || "success";
+      const spMsg    = res.data?.sharepoint_message || "";
+
       addActivity(`${trfNumber.trim()} created — "${projectName.trim()}"`, actor);
-      addNotification({ title: `${trfNumber.trim()} created`, body: `"${projectName.trim()}" is ready`, color: "#6366f1", type: "trf" });
-      toast.success("TRF created successfully! 🎉");
+      addNotification({
+        title: `${trfNumber.trim()} created`,
+        body:  `"${projectName.trim()}" is ready · SharePoint: ${spStatus}`,
+        color: spStatus === "failed" ? "#ef4444" : spStatus === "partial" ? "#f59e0b" : "#6366f1",
+        type:  "trf",
+      });
+
+      // Show SharePoint-aware success message
+      if (spStatus === "failed") {
+        toast(`TRF created (local only — SharePoint unavailable)`, { icon: "⚠️" });
+      } else if (spStatus === "partial") {
+        toast(`TRF created — some SharePoint folders failed`, { icon: "⚠️" });
+      } else {
+        toast.success("TRF created successfully! 🎉");
+      }
       setStep(2);
     } catch (e) {
       toast.error(e.message || "Failed to create TRF");

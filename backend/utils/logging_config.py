@@ -1,37 +1,58 @@
+"""
+Logging configuration.
+
+LOG_LEVEL env var controls root level (default: INFO).
+Noisy third-party loggers are set to WARNING to reduce console noise.
+"""
 import logging
 import os
 import sys
 
-# Formatter
-formatter = logging.Formatter(
-    "[%(asctime)s] %(levelname)s [%(name)s:%(lineno)d] - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+
+_FORMATTER = logging.Formatter(
+    "[%(asctime)s] %(levelname)-8s [%(name)s] %(message)s",
+    datefmt="%H:%M:%S"
 )
 
-# Root level config
-def setup_logging():
+# Third-party loggers that produce excessive output at INFO level
+_QUIET_LOGGERS = [
+    "uvicorn.access",      # per-request access logs  ← main source of noise
+    "uvicorn.error",
+    "sqlalchemy.engine",
+    "sqlalchemy.pool",
+    "httpx",
+    "httpcore",
+    "multipart",
+]
+
+
+def setup_logging() -> None:
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     numeric_level = getattr(logging, log_level, logging.INFO)
 
-    root_logger = logging.getLogger()
-    root_logger.setLevel(numeric_level)
+    root = logging.getLogger()
+    root.setLevel(numeric_level)
 
-    # Clear existing handlers
-    if root_logger.handlers:
-        root_logger.handlers.clear()
+    # Remove any existing handlers
+    root.handlers.clear()
 
-    # Console Handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
+    # Console handler
+    console = logging.StreamHandler(sys.stdout)
+    console.setFormatter(_FORMATTER)
+    console.setLevel(numeric_level)
+    root.addHandler(console)
 
-    # File Handler
+    # Optional file handler
     log_dir = "logs"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-    file_handler = logging.FileHandler(os.path.join(log_dir, "app.log"), encoding="utf-8")
-    file_handler.setFormatter(formatter)
-    root_logger.addHandler(file_handler)
+    os.makedirs(log_dir, exist_ok=True)
+    fh = logging.FileHandler(os.path.join(log_dir, "app.log"), encoding="utf-8")
+    fh.setFormatter(_FORMATTER)
+    fh.setLevel(logging.DEBUG)   # capture everything to file
+    root.addHandler(fh)
+
+    # Silence noisy third-party loggers in console
+    for name in _QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:

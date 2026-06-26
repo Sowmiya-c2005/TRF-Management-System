@@ -1,152 +1,218 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Tooltip from "@mui/material/Tooltip";
 import Chip from "@mui/material/Chip";
 import { useTheme } from "@mui/material/styles";
+
 import { useAnimatedCounter } from "../hooks/useAnimatedCounter";
 import TrendingUpRoundedIcon   from "@mui/icons-material/TrendingUpRounded";
 import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 
 /**
- * Premium StatCard — enterprise KPI card
+ * Premium StatCard — enterprise KPI card with:
+ * ── Animated counter (viewport-triggered, ease-out-quart)
+ * ── Hover: lift + glow shadow + gradient border brightens
+ * ── Floating icon animation
+ * ── Click ripple + navigation
+ * ── Mouse parallax on orb
+ * ── Animated gradient bottom accent
  *
  * Props:
- *   title       — label shown below value
- *   value       — number → animates   |   string → shown as-is
- *   subtitle    — small text beneath title (e.g. "Live from database")
- *   icon        — MUI icon element
- *   gradient    — CSS gradient string for icon bg
- *   glowColor   — hex used for hover glow
- *   delay       — framer-motion stagger delay (seconds)
- *   prefix/suffix — wraps animated number
- *   tooltip     — optional tooltip text
- *   trend       — { value: ±number, label: string }
- *   onClick     — click handler
+ *   title       — label
+ *   value       — number → counter-animates   |   string → shown as-is
+ *   subtitle    — caption below title
+ *   icon        — MUI icon JSX
+ *   gradient    — CSS gradient for icon bg
+ *   glowColor   — hex color for glow/ripple
+ *   delay       — entrance stagger (seconds)
+ *   prefix/suffix
+ *   tooltip
+ *   trend       — { value: number }  (+8 → "+8%", -3 → "-3%")
+ *   navigateTo  — route string — card becomes clickable
  */
 export default function StatCard({
   title, value, subtitle, icon, gradient, delay = 0, glowColor,
-  prefix = "", suffix = "", tooltip = "", trend, onClick,
+  prefix = "", suffix = "", tooltip = "", trend, navigateTo,
 }) {
   const theme   = useTheme();
   const isDark  = theme.palette.mode === "dark";
+  const navigate = useNavigate();
   const rippleRef = useRef(null);
+  const [hovered, setHovered] = useState(false);
 
   const isNumeric = typeof value === "number";
-  const animated  = useAnimatedCounter(isNumeric ? value : 0, 1500, isNumeric);
-  const display   = isNumeric
+  const { value: animated, ref: viewportRef } = useAnimatedCounter(
+    isNumeric ? value : 0,
+    1400,
+    isNumeric
+  );
+  // Always show real value once animation completes or if non-numeric
+  const display = isNumeric
     ? `${prefix}${animated.toLocaleString()}${suffix}`
     : (value ?? "—");
 
   const trendPositive = trend && trend.value >= 0;
+  const isClickable   = !!navigateTo;
 
-  const handleClick = (e) => {
+  // ── Ripple ───────────────────────────────────────────────────────────────
+  const spawnRipple = (e) => {
     if (!rippleRef.current) return;
     const rect = rippleRef.current.getBoundingClientRect();
-    const ripple = document.createElement("span");
-    const size = Math.max(rect.width, rect.height) * 2;
-    ripple.style.cssText = `
+    const span = document.createElement("span");
+    const size = Math.max(rect.width, rect.height) * 2.2;
+    span.style.cssText = `
       position:absolute; border-radius:50%; pointer-events:none;
       width:${size}px; height:${size}px;
       left:${e.clientX - rect.left - size / 2}px;
       top:${e.clientY - rect.top - size / 2}px;
-      background:${glowColor || "#6366f1"}33;
-      animation:ripple 0.7s linear forwards;
+      background:${glowColor || "#6366f1"}2a;
+      animation:ripple 0.65s linear forwards;
     `;
-    rippleRef.current.appendChild(ripple);
-    setTimeout(() => ripple.remove(), 700);
-    onClick?.();
+    rippleRef.current.appendChild(span);
+    setTimeout(() => span.remove(), 700);
   };
+
+  const handleClick = (e) => {
+    spawnRipple(e);
+    if (navigateTo) navigate(navigateTo);
+  };
+
+  // ── Parallax mouse tracking ───────────────────────────────────────────────
+  const [orbStyle, setOrbStyle] = useState({});
+  const handleMouseMove = (e) => {
+    if (!rippleRef.current) return;
+    const rect = rippleRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width  - 0.5) * 18;
+    const y = ((e.clientY - rect.top)  / rect.height - 0.5) * 18;
+    setOrbStyle({ transform: `translate(${x}px,${y}px)` });
+  };
+  const resetOrb = () => setOrbStyle({});
 
   const card = (
     <motion.div
-      initial={{ opacity: 0, y: 28, scale: 0.93 }}
-      animate={{ opacity: 1, y: 0,  scale: 1 }}
-      transition={{ delay, duration: 0.48, ease: [0.4, 0, 0.2, 1] }}
-      whileHover={{ y: -6, scale: 1.02, transition: { duration: 0.22, ease: "easeOut" } }}
-      whileTap={{ scale: 0.98 }}
-      style={{ height: "100%", cursor: onClick ? "pointer" : "default" }}
-      onClick={handleClick}
+      initial={{ opacity: 0, y: 30, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0,  scale: 1   }}
+      transition={{ delay, duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+      whileHover={{ y: -7, scale: 1.025, transition: { duration: 0.22, ease: "easeOut" } }}
+      whileTap={isClickable ? { scale: 0.97 } : {}}
+      style={{ height: "100%", cursor: isClickable ? "pointer" : "default" }}
+      onClick={isClickable ? handleClick : undefined}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => { setHovered(false); resetOrb(); }}
+      onMouseMove={handleMouseMove}
     >
       <Box
-        ref={rippleRef}
+        ref={(el) => {
+          rippleRef.current = el;
+          viewportRef.current = el;
+        }}
         sx={{
           p: 3, borderRadius: "18px", height: "100%",
           position: "relative", overflow: "hidden",
           background: isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.92)",
           backdropFilter: "blur(24px)",
-          border: `1px solid ${isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.22)"}`,
+          border: `1px solid ${hovered && glowColor
+            ? `${glowColor}45`
+            : isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.22)"}`,
           transition: "box-shadow 0.3s ease, border-color 0.3s ease",
-          "&:hover": {
-            boxShadow: glowColor
-              ? `0 24px 48px ${glowColor}30, 0 6px 16px ${glowColor}18`
-              : "0 24px 48px rgba(15,23,42,0.12)",
-            borderColor: glowColor ? `${glowColor}50` : undefined,
-          },
+          boxShadow: hovered && glowColor
+            ? `0 24px 52px ${glowColor}28, 0 6px 16px ${glowColor}14`
+            : "none",
         }}
       >
-        {/* Background gradient orb */}
-        <Box sx={{
-          position: "absolute", top: -30, right: -30,
-          width: 130, height: 130, borderRadius: "50%",
-          background: gradient, opacity: isDark ? 0.12 : 0.08,
-          filter: "blur(22px)", pointerEvents: "none",
-          transition: "opacity 0.3s ease",
-        }} />
+        {/* ── Parallax orb ── */}
+        <Box
+          sx={{
+            position: "absolute", top: -36, right: -36,
+            width: 140, height: 140, borderRadius: "50%",
+            background: gradient, opacity: isDark ? 0.13 : 0.09,
+            filter: "blur(24px)", pointerEvents: "none",
+            transition: "transform 0.12s ease-out, opacity 0.3s",
+            opacity: hovered ? (isDark ? 0.22 : 0.16) : (isDark ? 0.13 : 0.09),
+            ...orbStyle,
+          }}
+        />
 
-        {/* Top row: icon + trend badge */}
+        {/* ── Top row: floating icon + trend badge ── */}
         <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 2.5 }}>
           <motion.div
-            animate={{ y: [0, -4, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            animate={{ y: [0, -5, 0] }}
+            transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut", delay: delay * 2 }}
           >
             <Box sx={{
-              width: 46, height: 46, borderRadius: "13px",
+              width: 48, height: 48, borderRadius: "14px",
               background: gradient,
               display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: glowColor ? `0 8px 22px ${glowColor}45` : "0 8px 20px rgba(0,0,0,0.15)",
-              "& svg": { fontSize: 22, color: "#fff" },
+              boxShadow: glowColor
+                ? `0 8px 24px ${glowColor}40`
+                : "0 8px 20px rgba(0,0,0,0.18)",
+              "& svg": { fontSize: 23, color: "#fff" },
+              transition: "transform 0.2s, box-shadow 0.2s",
+              transform: hovered ? "scale(1.08)" : "scale(1)",
             }}>
               {icon}
             </Box>
           </motion.div>
 
-          {trend && (
-            <Chip
-              icon={
-                trendPositive
-                  ? <TrendingUpRoundedIcon sx={{ fontSize: "13px !important" }} />
-                  : <TrendingDownRoundedIcon sx={{ fontSize: "13px !important" }} />
-              }
-              label={`${trendPositive ? "+" : ""}${trend.value}%`}
-              size="small"
-              sx={{
-                height: 22, fontSize: "0.68rem", fontWeight: 700,
-                background: trendPositive ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
-                color: trendPositive ? "#10b981" : "#ef4444",
-                border: `1px solid ${trendPositive ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)"}`,
-                "& .MuiChip-icon": { color: "inherit" },
-              }}
-            />
-          )}
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.75 }}>
+            {trend && (
+              <Chip
+                icon={
+                  trendPositive
+                    ? <TrendingUpRoundedIcon   sx={{ fontSize: "13px !important" }} />
+                    : <TrendingDownRoundedIcon sx={{ fontSize: "13px !important" }} />
+                }
+                label={`${trendPositive ? "+" : ""}${trend.value}%`}
+                size="small"
+                sx={{
+                  height: 22, fontSize: "0.68rem", fontWeight: 700,
+                  background: trendPositive ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                  color:      trendPositive ? "#10b981" : "#ef4444",
+                  border: `1px solid ${trendPositive ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)"}`,
+                  "& .MuiChip-icon": { color: "inherit" },
+                }}
+              />
+            )}
+            {isClickable && hovered && (
+              <motion.div
+                initial={{ opacity: 0, x: 4 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.18 }}
+              >
+                <Box sx={{
+                  width: 22, height: 22, borderRadius: "6px",
+                  background: glowColor ? `${glowColor}18` : "rgba(99,102,241,0.12)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <ArrowForwardRoundedIcon sx={{ fontSize: 13, color: glowColor || "#6366f1" }} />
+                </Box>
+              </motion.div>
+            )}
+          </Box>
         </Box>
 
-        {/* Animated value */}
+        {/* ── Animated value ── */}
         <AnimatePresence mode="wait">
           <motion.div
-            key={display}
+            key={String(display)}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.28 }}
           >
             <Typography
               variant="h3"
               sx={{
-                fontWeight: 800, fontSize: "clamp(1.5rem, 2.5vw, 2rem)",
-                color: theme.palette.text.primary, lineHeight: 1, mb: 0.5,
+                fontWeight: 800,
+                fontSize: "clamp(1.5rem,2.5vw,2rem)",
+                color: theme.palette.text.primary,
+                lineHeight: 1, mb: 0.5,
                 fontVariantNumeric: "tabular-nums",
                 fontFamily: "'Outfit', 'Inter', sans-serif",
+                letterSpacing: "-0.02em",
               }}
             >
               {display}
@@ -154,30 +220,45 @@ export default function StatCard({
           </motion.div>
         </AnimatePresence>
 
-        {/* Title */}
+        {/* ── Title ── */}
         <Typography variant="body2" sx={{
-          color: theme.palette.text.secondary, fontWeight: 600,
-          fontSize: "0.82rem", mb: 0.3, letterSpacing: "0.01em",
+          color: theme.palette.text.secondary,
+          fontWeight: 600, fontSize: "0.82rem",
+          mb: 0.3, letterSpacing: "0.01em",
         }}>
           {title}
         </Typography>
 
-        {/* Subtitle */}
+        {/* ── Subtitle ── */}
         {subtitle && (
           <Typography variant="caption" sx={{
-            color: theme.palette.text.disabled, fontWeight: 500, fontSize: "0.7rem",
+            color: theme.palette.text.disabled,
+            fontWeight: 500, fontSize: "0.7rem",
           }}>
             {subtitle}
           </Typography>
         )}
 
-        {/* Bottom accent line */}
+        {/* ── Click hint ── */}
+        {isClickable && hovered && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.18 }}>
+            <Typography variant="caption" sx={{
+              display: "block", mt: 0.5,
+              color: glowColor || "#6366f1",
+              fontSize: "0.68rem", fontWeight: 600,
+            }}>
+              Click to view →
+            </Typography>
+          </motion.div>
+        )}
+
+        {/* ── Bottom accent line ── */}
         <Box sx={{
-          position: "absolute", bottom: 0, left: 0, right: 0, height: "2px",
-          background: gradient, opacity: 0.4,
+          position: "absolute", bottom: 0, left: 0, right: 0, height: "2.5px",
+          background: gradient,
           borderRadius: "0 0 18px 18px",
+          opacity: hovered ? 0.75 : 0.3,
           transition: "opacity 0.3s",
-          ".MuiBox-root:hover > &": { opacity: 0.8 },
         }} />
       </Box>
     </motion.div>

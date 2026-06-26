@@ -1,14 +1,19 @@
 /**
- * AppContext — single source of truth for:
- *  - authenticated user / session
- *  - notifications (with unread count + mark-as-read)
- *  - user preferences (settings persisted to localStorage)
- *  - activity feed (shared across Dashboard & Notifications)
+ * AppContext
+ * ──────────────────────────────────────────────────────────────────────────
+ * Single source of truth for:
+ *  - Authenticated user session (persisted to localStorage)
+ *  - Notifications (fetched from backend when token exists; seed data otherwise)
+ *  - Activity feed (fetched from /audits/ when Admin+token; seed data otherwise)
+ *  - User preferences (persisted to localStorage)
+ *
+ * IMPORTANT: All backend API calls are guarded — they only fire when a JWT
+ * token is present. This prevents 401 console errors for unauthenticated users.
  */
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import API from "../services/api";
 
-// ─── Initial data ────────────────────────────────────────────────────────────
+// ─── Defaults ────────────────────────────────────────────────────────────────
 
 const DEFAULT_PREFS = {
   compactView: false,
@@ -38,146 +43,147 @@ function loadUser() {
   }
 }
 
+const hasToken = () => !!localStorage.getItem("token");
+
+// ─── Seed data (shown when backend is unreachable or no token) ────────────────
+
 const SEED_NOTIFICATIONS = [
-  { id: 1, title: "TRF-2026-105 created",       body: "New TRF created by Admin",           time: new Date(Date.now() - 2 * 60000),         read: false, color: "#6366f1", type: "trf" },
-  { id: 2, title: "File upload completed",       body: "NMMERGEDRECORD.pdf uploaded",        time: new Date(Date.now() - 15 * 60000),        read: false, color: "#10b981", type: "file" },
-  { id: 3, title: "New user registered",         body: "John Engineer joined the system",    time: new Date(Date.now() - 60 * 60000),        read: true,  color: "#f59e0b", type: "user" },
-  { id: 4, title: "Monthly report generated",   body: "June 2026 summary is ready",         time: new Date(Date.now() - 3 * 3600000),       read: true,  color: "#06b6d4", type: "report" },
-  { id: 5, title: "TRF-2026-101 updated",        body: "Project name changed by Admin",      time: new Date(Date.now() - 5 * 3600000),       read: true,  color: "#a855f7", type: "trf" },
+  { id: 1, title: "TRF-2026-105 created",     body: "New TRF created by Admin",       time: new Date(Date.now() - 2 * 60000),    read: false, color: "#6366f1", type: "trf"    },
+  { id: 2, title: "File upload completed",     body: "NMMERGEDRECORD.pdf uploaded",    time: new Date(Date.now() - 15 * 60000),   read: false, color: "#10b981", type: "file"   },
+  { id: 3, title: "New user registered",       body: "John Engineer joined",           time: new Date(Date.now() - 60 * 60000),   read: true,  color: "#f59e0b", type: "user"   },
+  { id: 4, title: "Monthly report generated",  body: "June 2026 summary is ready",     time: new Date(Date.now() - 3 * 3600000), read: true,  color: "#06b6d4", type: "report" },
+  { id: 5, title: "TRF-2026-101 updated",      body: "Project name changed by Admin",  time: new Date(Date.now() - 5 * 3600000), read: true,  color: "#a855f7", type: "trf"    },
 ];
 
 const SEED_ACTIVITIES = [
-  { id: 1, action: "TRF-2026-105 created",       user: "Admin",  time: new Date(Date.now() - 2 * 60000),   color: "#6366f1" },
-  { id: 2, action: "File uploaded to Documents", user: "Admin",  time: new Date(Date.now() - 15 * 60000),  color: "#10b981" },
-  { id: 3, action: "TRF-2026-100 updated",       user: "Admin",  time: new Date(Date.now() - 3600000),     color: "#f59e0b" },
-  { id: 4, action: "TRF-2026-099 reviewed",      user: "Admin",  time: new Date(Date.now() - 3 * 3600000), color: "#06b6d4" },
-  { id: 5, action: "Report generated",           user: "System", time: new Date(Date.now() - 5 * 3600000), color: "#a855f7" },
+  { id: 1, action: "TRF-2026-105 created",       user: "Admin",  time: new Date(Date.now() - 2 * 60000),    color: "#6366f1" },
+  { id: 2, action: "File uploaded to Documents", user: "Admin",  time: new Date(Date.now() - 15 * 60000),   color: "#10b981" },
+  { id: 3, action: "TRF-2026-100 updated",       user: "Admin",  time: new Date(Date.now() - 3600000),      color: "#f59e0b" },
+  { id: 4, action: "TRF-2026-099 reviewed",      user: "Admin",  time: new Date(Date.now() - 3 * 3600000),  color: "#06b6d4" },
+  { id: 5, action: "Report generated",           user: "System", time: new Date(Date.now() - 5 * 3600000),  color: "#a855f7" },
 ];
 
-// ─── Context ─────────────────────────────────────────────────────────────────
+// ─── Context ──────────────────────────────────────────────────────────────────
 
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [user, setUser] = useState(loadUser);
-  const [notifications, setNotifications] = useState([]);
-  const [activities, setActivities] = useState(SEED_ACTIVITIES);
-  const [prefs, setPrefsState] = useState(loadPrefs);
+  const [user,          setUser]          = useState(loadUser);
+  const [notifications, setNotifications] = useState(SEED_NOTIFICATIONS);
+  const [activities,    setActivities]    = useState(SEED_ACTIVITIES);
+  const [prefs,         setPrefsState]    = useState(loadPrefs);
 
-  // ── Fetch Notifications from Backend ──────────────────────────────────────
+  // ── Notifications ──────────────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
-    if (!user) return;
+    if (!hasToken()) return; // skip if no JWT — avoids 401 spam
     try {
       const res = await API.get("/notifications/");
+      if (!Array.isArray(res.data) || res.data.length === 0) return; // keep seed if empty
       const mapped = res.data.map((n) => ({
-        id: n.id,
+        id:    n.id,
         title: n.title,
-        body: n.body,
-        read: n.read,
-        type: n.type || "trf",
-        time: new Date(n.created_at),
-        color:
-          n.type === "trf"
-            ? "#6366f1"
-            : n.type === "file"
-            ? "#10b981"
-            : n.type === "user"
-            ? "#f59e0b"
-            : "#a855f7",
+        body:  n.body  || "",
+        read:  !!n.read,
+        type:  n.type  || "trf",
+        time:  new Date(n.created_at || Date.now()),
+        color: n.type === "file" ? "#10b981" : n.type === "user" ? "#f59e0b" : n.type === "report" ? "#06b6d4" : "#6366f1",
       }));
       setNotifications(mapped);
-    } catch (e) {
-      console.error("Failed to fetch notifications:", e);
+    } catch {
+      // silently keep current notifications — do NOT log to avoid console noise
     }
-  }, [user]);
+  }, []);
 
-  // ── Fetch Activities / Audit Logs for Admin ──────────────────────────────
+  // ── Audit trail (Admin only) ───────────────────────────────────────────────
   const fetchActivities = useCallback(async () => {
-    if (!user || user.role !== "Admin") return;
+    if (!hasToken() || !user) return;
+    // Only Admins can see the full audit trail
+    if (user.role !== "Admin" && user.role !== "Administrator") return;
     try {
       const res = await API.get("/audits/");
+      if (!Array.isArray(res.data) || res.data.length === 0) return;
       const mapped = res.data.map((log) => ({
-        id: log.id,
-        action: log.details || log.action,
-        user: log.username,
-        time: new Date(log.created_at),
-        color: log.action.includes("CREATE")
-          ? "#6366f1"
-          : log.action.includes("DELETE")
-          ? "#ef4444"
-          : "#f59e0b",
+        id:     log.id,
+        action: log.details || log.action || "System action",
+        user:   log.username || "System",
+        time:   new Date(log.created_at || Date.now()),
+        color:  (log.action || "").includes("DELETE")
+                  ? "#ef4444"
+                  : (log.action || "").includes("CREATE")
+                  ? "#6366f1"
+                  : "#f59e0b",
       }));
       setActivities(mapped);
-    } catch (e) {
-      console.error("Failed to fetch activities:", e);
+    } catch {
+      // silently keep seed activities
     }
   }, [user]);
 
-  // Sync data on user login/status changes
+  // Poll when user is logged in (with token)
   useEffect(() => {
-    if (user) {
+    if (user && hasToken()) {
       fetchNotifications();
       fetchActivities();
 
-      const notifTimer = setInterval(fetchNotifications, 15000);
-      const activityTimer = setInterval(fetchActivities, 30000);
+      const notifTimer    = setInterval(fetchNotifications, 30000);  // every 30s
+      const activityTimer = setInterval(fetchActivities,    60000);  // every 60s
 
       return () => {
         clearInterval(notifTimer);
         clearInterval(activityTimer);
       };
-    } else {
-      setNotifications([]);
+    } else if (!user) {
+      // Restore seed data on sign-out
+      setNotifications(SEED_NOTIFICATIONS);
       setActivities(SEED_ACTIVITIES);
     }
   }, [user, fetchNotifications, fetchActivities]);
 
-  // ── Notification helpers ──────────────────────────────────────────────────
+  // ── Notification helpers ───────────────────────────────────────────────────
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markRead = useCallback(async (id) => {
-    try {
-      await API.put(`/notifications/${id}/read`);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-      );
-    } catch (e) {
-      console.error("Failed to mark notification as read:", e);
+  const markRead = useCallback((id) => {
+    // Optimistic local update — fire API only when token exists
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    if (hasToken()) {
+      API.put(`/notifications/${id}/read`).catch(() => {});
     }
   }, []);
 
-  const markAllRead = useCallback(async () => {
-    try {
-      await API.put("/notifications/read-all");
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    } catch (e) {
-      console.error("Failed to mark all notifications as read:", e);
+  const markAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    if (hasToken()) {
+      API.put("/notifications/read-all").catch(() => {});
     }
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
   }, []);
 
   const addNotification = useCallback((notif) => {
     const entry = { id: Date.now(), read: false, time: new Date(), ...notif };
-    setNotifications((prev) => [entry, ...prev]);
+    setNotifications((prev) => [entry, ...prev.slice(0, 49)]);
   }, []);
 
-  // ── Activity helpers ──────────────────────────────────────────────────────
+  // ── Activity helpers ───────────────────────────────────────────────────────
 
   const addActivity = useCallback((action, userLabel = "Admin") => {
     const entry = { id: Date.now(), action, user: userLabel, time: new Date(), color: "#6366f1" };
     setActivities((prev) => [entry, ...prev.slice(0, 49)]);
   }, []);
 
-  // ── Auth helpers ──────────────────────────────────────────────────────────
+  // ── Auth helpers ───────────────────────────────────────────────────────────
 
   const signIn = useCallback((userData) => {
     const enriched = {
-      username: userData.username,
-      role: userData.role || "Engineer",
-      email: userData.email || `${userData.username}@trf.com`,
+      username:    userData.username,
+      role:        userData.role        || "Engineer",
+      email:       userData.email       || `${userData.username}@trf.com`,
       displayName: userData.displayName || userData.username,
-      avatar: userData.avatar || null,
-      joinedAt: userData.joinedAt || new Date().toISOString(),
+      avatar:      userData.avatar      || null,
+      joinedAt:    userData.joinedAt    || new Date().toISOString(),
     };
     if (userData.token) {
       localStorage.setItem("token", userData.token);
@@ -197,11 +203,13 @@ export function AppProvider({ children }) {
   const signOut = useCallback(() => {
     localStorage.removeItem("authUser");
     localStorage.removeItem("token");
+    localStorage.removeItem("refresh_token");
     setUser(null);
+    setNotifications(SEED_NOTIFICATIONS);
+    setActivities(SEED_ACTIVITIES);
   }, []);
 
-
-  // ── Preferences helpers ────────────────────────────────────────────────────
+  // ── Prefs helpers ──────────────────────────────────────────────────────────
 
   const setPrefs = useCallback((patch) => {
     setPrefsState((prev) => {
@@ -223,7 +231,8 @@ export function AppProvider({ children }) {
         user, signIn, signOut, updateUser,
         isAuthenticated: !!user,
         // notifications
-        notifications, unreadCount, markRead, markAllRead, addNotification,
+        notifications, unreadCount,
+        markRead, markAllRead, clearNotifications, addNotification,
         // activity
         activities, addActivity,
         // prefs

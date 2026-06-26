@@ -67,7 +67,9 @@ def legacy_all_trfs(db: Session = Depends(get_db)):
 
 @app.get("/dashboard-stats")
 def legacy_dashboard_stats(db: Session = Depends(get_db)):
-    return trf_service.get_dashboard_stats(db)
+    stats = trf_service.get_dashboard_stats(db)
+    # Keep backward compat — front-end only reads total_trfs
+    return stats
 
 
 @app.get("/search-trf/{trf_number}")
@@ -78,7 +80,12 @@ def legacy_search_trf(trf_number: str, db: Session = Depends(get_db)):
 @app.post("/create-trf")
 def legacy_create_trf(payload: TRFCreate, db: Session = Depends(get_db)):
     trf = trf_service.create_trf(db, payload)
-    return {"message": "TRF Created Successfully", "trf_number": trf.trf_number}
+    return {
+        "message":            "TRF Created Successfully",
+        "trf_number":         trf.trf_number,
+        "sharepoint_status":  trf.sharepoint_status,
+        "sharepoint_message": trf.sharepoint_message,
+    }
 
 
 @app.put("/update-trf/{trf_number}")

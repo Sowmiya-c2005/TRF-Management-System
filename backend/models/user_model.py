@@ -9,6 +9,8 @@ class User(Base):
     username = Column(String, unique=True, nullable=False, index=True)
     password = Column(String, nullable=False)
     role = Column(String, default="Engineer", nullable=False)
+    refresh_token = Column(String, nullable=True)
+    email = Column(String, nullable=True)
     created_at = Column(
         TIMESTAMP,
         server_default=text("CURRENT_TIMESTAMP"),

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, status
+import asyncio
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
@@ -7,8 +8,27 @@ from backend.schemas.trf_schema import MessageResponse
 from backend.services import notification_service
 from backend.middleware.auth_middleware import get_current_user
 from backend.models.user_model import User
+from backend.utils.websocket_manager import manager
+from backend.utils.logging_config import get_logger
 
+logger = get_logger("notification_routes")
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+
+@router.websocket("/ws")
+async def notifications_websocket(websocket: WebSocket):
+    """WebSocket endpoint for real-time notification streaming."""
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive — receive any client pings
+            data = await websocket.receive_text()
+            # Optionally handle client -> server messages if needed
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"WebSocket error: {str(e)}")
+        manager.disconnect(websocket)
 
 
 @router.get("/", response_model=list[NotificationResponse])
@@ -38,5 +58,4 @@ def read_single_notification(
     current_user: User = Depends(get_current_user)
 ):
     """Mark a single notification as read."""
-    # Note: in an enterprise app, we'd verify the notification belongs to current_user or is global
     return notification_service.mark_as_read(db, notification_id)

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
+import { useSearchParams } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
@@ -23,14 +24,36 @@ export default function UpdateTRF() {
   const theme  = useTheme();
   const isDark = theme.palette.mode === "dark";
   const { addActivity, addNotification, user } = useApp();
+  const [searchParams] = useSearchParams();
 
-  const [trfNumber,    setTrfNumber]    = useState("");
+  const [trfNumber,    setTrfNumber]    = useState(searchParams.get("trf") || "");
   const [projectName,  setProjectName]  = useState("");
   const [currentName,  setCurrentName]  = useState("");
   const [lookupDone,   setLookupDone]   = useState(false);
   const [lookupLoading,setLookupLoading]= useState(false);
   const [loading,      setLoading]      = useState(false);
   const [success,      setSuccess]      = useState(false);
+
+  // Auto-lookup if URL param is present
+  useEffect(() => {
+    const prefill = searchParams.get("trf");
+    if (prefill && prefill.trim()) {
+      setTrfNumber(prefill.trim());
+      // Trigger lookup automatically
+      (async () => {
+        setLookupLoading(true);
+        try {
+          const r = await searchTRF(prefill.trim());
+          if (!r.data?.message) {
+            setCurrentName(r.data.project_name || "");
+            setProjectName(r.data.project_name || "");
+            setLookupDone(true);
+          }
+        } catch {}
+        finally { setLookupLoading(false); }
+      })();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cardBg = isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.88)";
   const border = isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.2)";

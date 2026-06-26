@@ -1,3 +1,4 @@
+from typing import Optional
 from sqlalchemy.orm import Session
 from backend.models.audit_log_model import AuditLog
 from backend.repositories.audit_log_repository import AuditLogRepository
@@ -26,6 +27,20 @@ def log_action(
     return log_entry
 
 
-def get_audit_logs(db: Session, limit: int = 100, offset: int = 0) -> list[AuditLog]:
-    """Retrieve audit logs."""
-    return audit_repo.get_logs(db, limit, offset)
+def get_audit_logs(
+    db: Session,
+    limit: int = 100,
+    offset: int = 0,
+    action_filter: Optional[str] = None,
+    username_filter: Optional[str] = None,
+    search: Optional[str] = None
+) -> list[AuditLog]:
+    """Retrieve audit logs with optional filters."""
+    return audit_repo.get_logs(
+        db,
+        limit=limit,
+        offset=offset,
+        action_filter=action_filter,
+        username_filter=username_filter,
+        search=search
+    )

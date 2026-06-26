@@ -17,10 +17,22 @@ class UserResponse(BaseModel):
     username: str
     role: str
     token: Optional[str] = None
+    refresh_token: Optional[str] = None
 
 
 class RegisterResponse(BaseModel):
     message: str
+
+
+class TokenRefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class TokenRefreshResponse(BaseModel):
+    token: str
+    refresh_token: str
+    role: str
+    username: str
 
 
 class Token(BaseModel):
