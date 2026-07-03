@@ -121,10 +121,10 @@ const darkComponents = {
     styleOverrides: {
       root: {
         borderRadius: 18,
-        border: "1px solid rgba(148,163,184,0.1)",
-        backdropFilter: "blur(20px)",
-        background: "rgba(15,23,42,0.8)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
+        border: "1px solid rgba(148,163,184,0.10)",
+        backdropFilter: "blur(24px)",
+        background: "rgba(13,16,34,0.82)",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.40), inset 0 1px 0 rgba(255,255,255,0.05)",
       },
     },
   },
@@ -257,7 +257,7 @@ export const darkTheme = createTheme({
     warning:    { main: "#fbbf24", light: "#fcd34d", dark: "#f59e0b" },
     error:      { main: "#f87171", light: "#fca5a5", dark: "#ef4444" },
     info:       { main: "#60a5fa", light: "#93c5fd", dark: "#3b82f6" },
-    background: { default: "#0a0f1e", paper: "#0f172a" },
+    background: { default: "#060918", paper: "#0d1022" },
     text:       { primary: "#f1f5f9", secondary: "#94a3b8", disabled: "#475569" },
     divider:    "rgba(148,163,184,0.1)",
   },

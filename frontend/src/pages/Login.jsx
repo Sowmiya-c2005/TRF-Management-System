@@ -66,7 +66,7 @@ const ROLES = [
   {
     key:"Admin",    label:"Administrator", username:"admin",    password:"Admin@123",
     /* reference: dark purple-grey frosted glass — muted, slightly metallic */
-    cardBg:  "linear-gradient(135deg, rgba(68,42,130,0.78) 0%, rgba(42,22,90,0.65) 100%)",
+    cardBg:  "linear-gradient(135deg, rgba(140, 92, 149, 0.78) 0%, rgba(42,22,90,0.65) 100%)",
     backBg:  "linear-gradient(135deg, rgba(50,28,100,0.68) 0%, rgba(30,14,68,0.55) 100%)",
     border:  "rgba(180,155,255,0.60)",
     glow:    "rgba(139,92,246,0.85)",
@@ -616,7 +616,7 @@ export default function Login() {
                 background:"linear-gradient(112deg,#f7c515 0%,#ffe878 16%,#ffffff 44%,#c8e8ff 88%)",
                 WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
               }}>
-                One Portal, Four Roles
+                Welcome To The Automatic TRF Folder Creation & Document Management System!!
               </h1>
               <p style={{margin:"0 0 28px",color:"#94a3b8",fontSize:15,lineHeight:1.5}}>
                 Access your complete enterprise intelligence, unified.
