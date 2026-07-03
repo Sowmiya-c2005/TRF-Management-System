@@ -13,6 +13,9 @@ import IconButton from "@mui/material/IconButton";
 import CircularProgress from "@mui/material/CircularProgress";
 import toast from "react-hot-toast";
 
+import QrCode2RoundedIcon from "@mui/icons-material/QrCode2Rounded";
+import QRCodeModal from "../components/QRCodeModal";
+
 import SearchRoundedIcon        from "@mui/icons-material/SearchRounded";
 import FolderRoundedIcon        from "@mui/icons-material/FolderRounded";
 import FolderOpenRoundedIcon    from "@mui/icons-material/FolderOpenRounded";
@@ -39,8 +42,9 @@ export default function SearchTRF() {
 
   const [query,   setQuery]   = useState("");
   const [result,  setResult]  = useState(null);
-  const [status,  setStatus]  = useState("idle"); // idle | loading | found | notfound
+  const [status,  setStatus]  = useState("idle");
   const [error,   setError]   = useState("");
+  const [qrOpen,  setQrOpen]  = useState(false);
 
   const cardBg = isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.88)";
   const border  = isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.2)";
@@ -223,7 +227,23 @@ export default function SearchTRF() {
                 >
                   Update TRF
                 </Button>
+                <Button
+                  variant="outlined" size="small"
+                  startIcon={<QrCode2RoundedIcon />}
+                  onClick={() => setQrOpen(true)}
+                  sx={{ borderRadius: "10px" }}
+                >
+                  QR
+                </Button>
               </Box>
+
+              {/* QR Modal */}
+              <QRCodeModal
+                open={qrOpen}
+                onClose={() => setQrOpen(false)}
+                trfNumber={result.trf_number}
+                projectName={result.project_name}
+              />
             </Box>
           </motion.div>
         )}

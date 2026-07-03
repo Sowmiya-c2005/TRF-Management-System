@@ -1,10 +1,16 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
+from datetime import datetime
 
+
+# ── Requests ──────────────────────────────────────────────────────────────────
 
 class UserCreate(BaseModel):
-    username: str = Field(..., min_length=3, description="Unique username")
-    password: str = Field(..., min_length=6, description="User password")
+    username:     str = Field(..., min_length=3,  description="Unique username")
+    password:     str = Field(..., min_length=6,  description="Password (min 6 chars)")
+    email:        Optional[str] = None
+    display_name: Optional[str] = None
+    role:         Optional[str] = "Engineer"       # Admin can override
 
 
 class UserLogin(BaseModel):
@@ -12,12 +18,39 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserUpdate(BaseModel):
+    email:        Optional[str] = None
+    display_name: Optional[str] = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=6)
+
+
+class RoleUpdateRequest(BaseModel):
+    role: str = Field(..., description="New role: Admin | Engineer | Manager | Viewer")
+
+
+# ── Responses ─────────────────────────────────────────────────────────────────
+
 class UserResponse(BaseModel):
-    message: str
-    username: str
-    role: str
-    token: Optional[str] = None
+    message:       str
+    username:      str
+    role:          str
+    token:         Optional[str] = None
     refresh_token: Optional[str] = None
+
+
+class UserProfileResponse(BaseModel):
+    id:           int
+    username:     str
+    role:         str
+    email:        Optional[str]
+    display_name: Optional[str]
+    created_at:   datetime
+
+    model_config = {"from_attributes": True}
 
 
 class RegisterResponse(BaseModel):
@@ -29,19 +62,19 @@ class TokenRefreshRequest(BaseModel):
 
 
 class TokenRefreshResponse(BaseModel):
-    token: str
+    token:         str
     refresh_token: str
-    role: str
-    username: str
+    role:          str
+    username:      str
 
 
 class Token(BaseModel):
     access_token: str
-    token_type: str
-    role: str
-    username: str
+    token_type:   str
+    role:         str
+    username:     str
 
 
 class TokenData(BaseModel):
     username: Optional[str] = None
-    role: Optional[str] = None
+    role:     Optional[str] = None

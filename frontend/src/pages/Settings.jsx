@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
 
@@ -8,6 +8,10 @@ import Button from "@mui/material/Button";
 import Switch from "@mui/material/Switch";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import CircularProgress from "@mui/material/CircularProgress";
+import Alert from "@mui/material/Alert";
 import toast from "react-hot-toast";
 
 import SettingsRoundedIcon      from "@mui/icons-material/SettingsRounded";
@@ -21,14 +25,21 @@ import CheckRoundedIcon         from "@mui/icons-material/CheckRounded";
 import RestartAltRoundedIcon    from "@mui/icons-material/RestartAltRounded";
 import SaveRoundedIcon          from "@mui/icons-material/SaveRounded";
 import FolderSpecialRoundedIcon from "@mui/icons-material/FolderSpecialRounded";
+import StorageRoundedIcon       from "@mui/icons-material/StorageRounded";
+import FolderOpenRoundedIcon    from "@mui/icons-material/FolderOpenRounded";
+import CheckCircleRoundedIcon   from "@mui/icons-material/CheckCircleRounded";
+import WarningRoundedIcon       from "@mui/icons-material/WarningRounded";
+import RefreshRoundedIcon       from "@mui/icons-material/RefreshRounded";
 
-import { useThemeMode }         from "../context/ThemeContext";
-import { useApp }               from "../context/AppContext";
+import { useThemeMode } from "../context/ThemeContext";
+import { useApp }       from "../context/AppContext";
+import API              from "../services/api";
 
 const TABS = [
   { id: "appearance",    label: "Appearance",    icon: <PaletteRoundedIcon sx={{ fontSize: 18 }} /> },
   { id: "notifications", label: "Notifications", icon: <NotificationsRoundedIcon sx={{ fontSize: 18 }} /> },
   { id: "system",        label: "System",        icon: <TuneRoundedIcon sx={{ fontSize: 18 }} /> },
+  { id: "storage",       label: "Storage",       icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, adminOnly: true },
   { id: "about",         label: "About",         icon: <InfoRoundedIcon sx={{ fontSize: 18 }} /> },
 ];
 
@@ -58,14 +69,198 @@ const STACK = [
   { label: "Recharts", color: "#ff6d00" },
 ];
 
+// ─── Storage Panel (Admin only) ───────────────────────────────────────────────
+function StoragePanel({ cardBg, border, isDark }) {
+  const [config,      setConfig]      = useState(null);
+  const [customPath,  setCustomPath]  = useState("");
+  const [loading,     setLoading]     = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [validating,  setValidating]  = useState(false);
+  const [validation,  setValidation]  = useState(null);  // { usable, path, exists, can_write }
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const r = await API.get("/admin/storage/");
+      setConfig(r.data);
+      setCustomPath(r.data.storage_root || "");
+    } catch { toast.error("Failed to load storage config"); }
+    finally   { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const validate = async () => {
+    if (!customPath.trim()) { setValidation(null); return; }
+    setValidating(true);
+    try {
+      const r = await API.post("/admin/storage/validate", { path: customPath.trim() });
+      setValidation(r.data);
+    } catch { toast.error("Validation failed"); }
+    finally { setValidating(false); }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await API.put("/admin/storage/", { storage_root: customPath.trim() || null });
+      setConfig(r.data);
+      setValidation(null);
+      toast.success(customPath.trim()
+        ? `Storage set to: ${r.data.active_root}`
+        : "Storage reset to default");
+    } catch (e) { toast.error(e.message || "Save failed"); }
+    finally { setSaving(false); }
+  };
+
+  const reset = async () => {
+    setCustomPath("");
+    setSaving(true);
+    try {
+      const r = await API.put("/admin/storage/", { storage_root: null });
+      setConfig(r.data);
+      setValidation(null);
+      toast.success("Storage reset to default");
+    } catch (e) { toast.error(e.message || "Reset failed"); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Box>
+      <Typography sx={{ fontWeight: 700, fontSize: "1rem", mb: 0.5 }}>Storage Configuration</Typography>
+      <Typography sx={{ fontSize: "0.8rem", color: "text.secondary", mb: 3 }}>
+        Set a custom directory where all TRF folders and uploaded files will be stored.
+        Leave blank to use the default <code style={{ color: "#818cf8" }}>uploads/</code> directory.
+      </Typography>
+
+      {loading ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+          <CircularProgress size={28} sx={{ color: "#6366f1" }} />
+        </Box>
+      ) : config && (
+        <>
+          {/* Current active path */}
+          <Box sx={{ p: 2, borderRadius: "12px", background: isDark ? "rgba(16,185,129,0.08)" : "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.25)", mb: 3 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+              <CheckCircleRoundedIcon sx={{ fontSize: 16, color: "#10b981" }} />
+              <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "#10b981", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Active Storage Path
+              </Typography>
+              {config.is_custom && (
+                <Chip label="Custom" size="small" sx={{ fontSize: "0.6rem", height: 17, background: "rgba(99,102,241,0.15)", color: "#818cf8", ml: "auto" }} />
+              )}
+            </Box>
+            <Typography sx={{ fontSize: "0.85rem", fontWeight: 700, fontFamily: "monospace", color: "text.primary", wordBreak: "break-all" }}>
+              {config.active_root}
+            </Typography>
+            <Typography sx={{ fontSize: "0.7rem", color: "text.disabled", mt: 0.5 }}>
+              Default: {config.env_default}
+            </Typography>
+          </Box>
+
+          {/* Input */}
+          <Box sx={{ mb: 1.5 }}>
+            <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, mb: 0.75, color: "text.secondary" }}>
+              Custom Storage Directory
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1.5 }}>
+              <TextField
+                fullWidth
+                placeholder={`e.g. C:\\TRFFiles  or  /data/trf-storage`}
+                value={customPath}
+                onChange={e => { setCustomPath(e.target.value); setValidation(null); }}
+                size="small"
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><FolderOpenRoundedIcon sx={{ fontSize: 18 }} /></InputAdornment>,
+                  sx: { borderRadius: "10px", fontFamily: "monospace", fontSize: "0.85rem" },
+                }}
+              />
+              <Button variant="outlined" size="small" onClick={validate} disabled={validating || !customPath.trim()}
+                sx={{ borderRadius: "10px", minWidth: 100, flexShrink: 0 }}
+                startIcon={validating ? <CircularProgress size={14} color="inherit" /> : <CheckRoundedIcon sx={{ fontSize: 15 }} />}>
+                {validating ? "Checking…" : "Validate"}
+              </Button>
+            </Box>
+          </Box>
+
+          {/* Validation result */}
+          {validation && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <Alert
+                severity={validation.usable ? "success" : "error"}
+                sx={{ mb: 2, borderRadius: "10px", fontSize: "0.78rem" }}
+                icon={validation.usable ? <CheckCircleRoundedIcon fontSize="small" /> : <WarningRoundedIcon fontSize="small" />}
+              >
+                <Box>
+                  <b>{validation.usable ? "Path is valid and usable" : "Path cannot be used"}</b>
+                  <Box sx={{ mt: 0.5 }}>
+                    <code style={{ fontSize: "0.8rem" }}>{validation.path}</code>
+                  </Box>
+                  <Box sx={{ display: "flex", gap: 1.5, mt: 0.75, flexWrap: "wrap" }}>
+                    {[
+                      { label: "Exists",    ok: validation.exists },
+                      { label: "Directory", ok: validation.is_dir },
+                      { label: "Writable",  ok: validation.can_write },
+                      { label: "Parent OK", ok: validation.parent_ok },
+                    ].map(i => (
+                      <Chip key={i.label} label={i.label} size="small"
+                        sx={{ fontSize: "0.62rem", height: 18,
+                          background: i.ok ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.12)",
+                          color: i.ok ? "#10b981" : "#ef4444" }} />
+                    ))}
+                  </Box>
+                </Box>
+              </Alert>
+            </motion.div>
+          )}
+
+          {/* Actions */}
+          <Box sx={{ display: "flex", gap: 1.5, mt: 1 }}>
+            <Button variant="contained" onClick={save} disabled={saving}
+              startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveRoundedIcon />}
+              sx={{ borderRadius: "10px", background: "linear-gradient(135deg,#6366f1,#06b6d4)", boxShadow: "none" }}>
+              {saving ? "Saving…" : "Save Path"}
+            </Button>
+            {config.is_custom && (
+              <Button variant="outlined" onClick={reset} disabled={saving}
+                startIcon={<RestartAltRoundedIcon />}
+                sx={{ borderRadius: "10px" }}>
+                Reset to Default
+              </Button>
+            )}
+            <Button variant="text" onClick={load} startIcon={<RefreshRoundedIcon sx={{ fontSize: 16 }} />}
+              sx={{ borderRadius: "10px", ml: "auto", fontSize: "0.78rem" }}>
+              Refresh
+            </Button>
+          </Box>
+
+          {/* Help note */}
+          <Box sx={{ mt: 3, p: 2, borderRadius: "10px", background: isDark ? "rgba(99,102,241,0.07)" : "rgba(99,102,241,0.04)", border: "1px solid rgba(99,102,241,0.15)" }}>
+            <Typography sx={{ fontSize: "0.75rem", color: "text.secondary", lineHeight: 1.7 }}>
+              <b>How it works:</b> When you set a custom path, all new TRF folders and uploaded files
+              will be created inside that directory (e.g. <code style={{ color: "#818cf8" }}>D:\TRFStore\TRF-2026-101\Documents\</code>).
+              Existing file paths stored in the database are not moved. The new path takes effect
+              immediately for all new uploads.
+            </Typography>
+          </Box>
+        </>
+      )}
+    </Box>
+  );
+}
+
+
 export default function Settings() {
   const theme  = useTheme();
   const isDark = theme.palette.mode === "dark";
   const { toggle } = useThemeMode();
-  const { prefs, setPrefs, resetPrefs } = useApp();
+  const { prefs, setPrefs, resetPrefs, user } = useApp();
 
   const [activeTab, setActiveTab] = useState("appearance");
   const [saved,     setSaved]     = useState(false);
+
+  const isAdmin   = user?.role === "Admin";
+  const visibleTabs = TABS.filter(t => !t.adminOnly || isAdmin);
 
   const cardBg = isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.88)";
   const border  = isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.2)";
@@ -115,6 +310,7 @@ export default function Settings() {
           }}>
             {TABS.map((tab) => {
               const isActive = activeTab === tab.id;
+              if (tab.adminOnly && !isAdmin) return null;
               return (
                 <motion.div key={tab.id} whileHover={{ x: 3 }} whileTap={{ scale: 0.97 }}>
                   <Box
@@ -229,9 +425,13 @@ export default function Settings() {
                   </>
                 )}
 
+                {/* ─ Storage ─ */}
+                {activeTab === "storage" && (
+                  <StoragePanel cardBg={cardBg} border={border} isDark={isDark} />
+                )}
+
                 {/* ─ About ─ */}
-                {activeTab === "about" && (
-                  <>
+                {activeTab === "about" && (                  <>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 3 }}>
                       <Box sx={{
                         width: 56, height: 56, borderRadius: "16px",
@@ -269,8 +469,8 @@ export default function Settings() {
                   </>
                 )}
 
-                {/* Save/Reset buttons (not on About tab) */}
-                {activeTab !== "about" && (
+                {/* Save/Reset buttons (not on About or Storage tab) */}
+                {activeTab !== "about" && activeTab !== "storage" && (
                   <Box sx={{ display: "flex", gap: 1.5, mt: 3.5, pt: 2.5, borderTop: `1px solid ${border}` }}>
                     <Button
                       variant="outlined" size="small"

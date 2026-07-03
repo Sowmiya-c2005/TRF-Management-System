@@ -67,8 +67,18 @@ export default function FileManager() {
     setLoading(true); setFiles([]); setSelected(null);
     try {
       const res = await listFiles(trf.trim(), folder);
-      setFiles(Array.isArray(res.data) ? res.data : []);
-    } catch {
+      // Backend returns { trf_number, folder_name, files: [...] }
+      // Each file is either a string (legacy) or an object { id, filename, size_bytes, ... }
+      const raw = res.data?.files ?? (Array.isArray(res.data) ? res.data : []);
+      // Keep rich objects — normalise legacy strings to minimal objects
+      const normalised = raw.map((f) =>
+        typeof f === "string"
+          ? { filename: f, size_bytes: null, uploaded_at: null, uploaded_by: null, version_count: null }
+          : f
+      );
+      setFiles(normalised);
+    } catch (e) {
+      toast.error(e.message || "Failed to load files");
       setFiles([]);
     } finally {
       setLoading(false);
@@ -84,29 +94,45 @@ export default function FileManager() {
     setTrfNumber(trfInput.trim());
   };
 
-  const handleDelete = async (fileName) => {
+  const handleDelete = async (fileObj) => {
+    const fname = typeof fileObj === "string" ? fileObj : fileObj.filename;
     try {
-      await deleteFile(trfNumber, activeFolder, fileName);
-      setFiles(prev => prev.filter(f => f !== fileName));
-      if (selected === fileName) setSelected(null);
-      addActivity(`Deleted ${fileName} from ${activeFolder}`, user?.username || "Admin");
-      toast.success(`${fileName} deleted`);
+      await deleteFile(trfNumber, activeFolder, fname);
+      setFiles(prev => prev.filter(f => (f.filename || f) !== fname));
+      if (selected?.filename === fname || selected === fname) setSelected(null);
+      addActivity(`Deleted ${fname} from ${activeFolder}`, user?.username || "Admin");
+      toast.success(`${fname} deleted`);
     } catch (e) {
       toast.error(e.message || "Delete failed");
     }
   };
 
-  const handleDownload = async (fileName) => {
+  const handleDownload = async (fileObj) => {
+    const fname = typeof fileObj === "string" ? fileObj : fileObj.filename;
     try {
-      await downloadFile(trfNumber, activeFolder, fileName);
+      await downloadFile(trfNumber, activeFolder, fname);
     } catch (e) {
       toast.error(e.message || "Download failed");
     }
   };
 
   const filtered = search.trim()
-    ? files.filter(f => f.toLowerCase().includes(search.toLowerCase()))
+    ? files.filter(f => (f.filename || f).toLowerCase().includes(search.toLowerCase()))
     : files;
+
+  // Helper to get filename string from a file object or string
+  const fname = (f) => (typeof f === "string" ? f : f.filename || "");
+  const fsize = (f) => {
+    if (typeof f === "string" || !f.size_bytes) return null;
+    const b = f.size_bytes;
+    if (b < 1024) return `${b} B`;
+    if (b < 1048576) return `${(b/1024).toFixed(1)} KB`;
+    return `${(b/1048576).toFixed(1)} MB`;
+  };
+  const fdate = (f) => {
+    if (typeof f === "string" || !f.uploaded_at) return null;
+    return new Date(f.uploaded_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  };
 
   const activeFolderColor = FOLDERS.find(f => f.name === activeFolder)?.color || "#6366f1";
 
@@ -284,33 +310,37 @@ export default function FileManager() {
               {/* Grid view */}
               {!loading && filtered.length > 0 && viewMode === "grid" && (
                 <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 1.5 }}>
-                  {filtered.map((fname, i) => (
-                    <motion.div key={fname} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}>
+                  {filtered.map((f, i) => {
+                    const n = fname(f);
+                    return (
+                    <motion.div key={n} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}>
                       <Box
-                        onClick={() => setSelected(fname === selected ? null : fname)}
+                        onClick={() => setSelected(fname(selected) === n ? null : f)}
                         sx={{
                           p: 2.5, borderRadius: "16px", cursor: "pointer", textAlign: "center",
-                          background: selected === fname ? `${activeFolderColor}14` : cardBg,
-                          border: `1px solid ${selected === fname ? `${activeFolderColor}40` : border}`,
-                          backdropFilter: "blur(20px)",
-                          transition: "all 0.18s",
+                          background: fname(selected) === n ? `${activeFolderColor}14` : cardBg,
+                          border: `1px solid ${fname(selected) === n ? `${activeFolderColor}40` : border}`,
+                          backdropFilter: "blur(20px)", transition: "all 0.18s",
                           "&:hover": { transform: "translateY(-2px)", boxShadow: isDark ? "0 8px 24px rgba(0,0,0,0.3)" : "0 8px 24px rgba(15,23,42,0.1)" },
                         }}
                       >
-                        <InsertDriveFileRoundedIcon sx={{ fontSize: 36, color: getExtColor(fname), mb: 1 }} />
-                        <Chip label={getExt(fname)} size="small" sx={{ fontSize: "0.6rem", height: 16, mb: 1, background: `${getExtColor(fname)}18`, color: getExtColor(fname) }} />
+                        <InsertDriveFileRoundedIcon sx={{ fontSize: 36, color: getExtColor(n), mb: 1 }} />
+                        <Chip label={getExt(n)} size="small" sx={{ fontSize: "0.6rem", height: 16, mb: 0.75, background: `${getExtColor(n)}18`, color: getExtColor(n) }} />
                         <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, color: theme.palette.text.primary, wordBreak: "break-all", lineHeight: 1.3 }}>
-                          {fname.length > 24 ? fname.slice(0, 21) + "…" : fname}
+                          {n.length > 24 ? n.slice(0, 21) + "…" : n}
                         </Typography>
+                        {fsize(f) && (
+                          <Typography sx={{ fontSize: "0.64rem", color: theme.palette.text.disabled, mt: 0.25 }}>{fsize(f)}</Typography>
+                        )}
                         <Box sx={{ display: "flex", justifyContent: "center", gap: 0.5, mt: 1 }}>
                           <Tooltip title="Download">
-                            <IconButton size="small" onClick={e => { e.stopPropagation(); handleDownload(fname); }}
+                            <IconButton size="small" onClick={e => { e.stopPropagation(); handleDownload(f); }}
                               sx={{ "&:hover": { color: "#06b6d4" } }}>
                               <FileDownloadRoundedIcon sx={{ fontSize: 14 }} />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete">
-                            <IconButton size="small" onClick={e => { e.stopPropagation(); handleDelete(fname); }}
+                            <IconButton size="small" onClick={e => { e.stopPropagation(); handleDelete(f); }}
                               sx={{ "&:hover": { color: "#ef4444" } }}>
                               <DeleteRoundedIcon sx={{ fontSize: 14 }} />
                             </IconButton>
@@ -318,37 +348,50 @@ export default function FileManager() {
                         </Box>
                       </Box>
                     </motion.div>
-                  ))}
+                    );
+                  })}
                 </Box>
               )}
 
               {/* List view */}
               {!loading && filtered.length > 0 && viewMode === "list" && (
                 <Box sx={{ borderRadius: "18px", background: cardBg, border: `1px solid ${border}`, overflow: "hidden" }}>
-                  {filtered.map((fname, i) => (
-                    <motion.div key={fname} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.035 }}>
+                  {filtered.map((f, i) => {
+                    const n = fname(f);
+                    return (
+                    <motion.div key={n} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.035 }}>
                       <Box sx={{
                         display: "flex", alignItems: "center", gap: 1.5,
                         px: 2.5, py: 1.75, cursor: "pointer",
                         borderBottom: i < filtered.length - 1 ? `1px solid ${border}` : "none",
-                        background: selected === fname ? `${activeFolderColor}08` : "transparent",
+                        background: fname(selected) === n ? `${activeFolderColor}08` : "transparent",
                         transition: "background 0.15s",
                         "&:hover": { background: isDark ? "rgba(148,163,184,0.04)" : "rgba(99,102,241,0.02)" },
-                      }} onClick={() => setSelected(fname === selected ? null : fname)}>
-                        <InsertDriveFileRoundedIcon sx={{ fontSize: 20, color: getExtColor(fname), flexShrink: 0 }} />
-                        <Typography sx={{ flex: 1, fontSize: "0.85rem", fontWeight: 500, color: theme.palette.text.primary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {fname}
-                        </Typography>
-                        <Chip label={getExt(fname)} size="small" sx={{ fontSize: "0.65rem", height: 18, background: `${getExtColor(fname)}18`, color: getExtColor(fname) }} />
+                      }} onClick={() => setSelected(fname(selected) === n ? null : f)}>
+                        <InsertDriveFileRoundedIcon sx={{ fontSize: 20, color: getExtColor(n), flexShrink: 0 }} />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontSize: "0.85rem", fontWeight: 500, color: theme.palette.text.primary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {n}
+                          </Typography>
+                          {(fsize(f) || fdate(f)) && (
+                            <Typography sx={{ fontSize: "0.7rem", color: theme.palette.text.disabled }}>
+                              {[fsize(f), fdate(f)].filter(Boolean).join(" · ")}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Chip label={getExt(n)} size="small" sx={{ fontSize: "0.65rem", height: 18, background: `${getExtColor(n)}18`, color: getExtColor(n) }} />
+                        {typeof f === "object" && f.version_count > 1 && (
+                          <Chip label={`v${f.version_count}`} size="small" sx={{ fontSize: "0.62rem", height: 18, background: "rgba(99,102,241,0.1)", color: "#818cf8" }} />
+                        )}
                         <Box sx={{ display: "flex", gap: 0.5 }}>
                           <Tooltip title="Download">
-                            <IconButton size="small" onClick={e => { e.stopPropagation(); handleDownload(fname); }}
+                            <IconButton size="small" onClick={e => { e.stopPropagation(); handleDownload(f); }}
                               sx={{ "&:hover": { color: "#06b6d4", background: "rgba(6,182,212,0.1)" }, borderRadius: "8px" }}>
                               <FileDownloadRoundedIcon sx={{ fontSize: 16 }} />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete">
-                            <IconButton size="small" onClick={e => { e.stopPropagation(); handleDelete(fname); }}
+                            <IconButton size="small" onClick={e => { e.stopPropagation(); handleDelete(f); }}
                               sx={{ "&:hover": { color: "#ef4444", background: "rgba(239,68,68,0.1)" }, borderRadius: "8px" }}>
                               <DeleteRoundedIcon sx={{ fontSize: 16 }} />
                             </IconButton>
@@ -356,7 +399,8 @@ export default function FileManager() {
                         </Box>
                       </Box>
                     </motion.div>
-                  ))}
+                    );
+                  })}
                 </Box>
               )}
             </motion.div>
@@ -364,54 +408,42 @@ export default function FileManager() {
             {/* File detail panel */}
             <AnimatePresence>
               {selected && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 20 }}
-                  transition={{ duration: 0.28 }}
-                  style={{ marginTop: 16 }}
-                >
-                  <Box sx={{
-                    p: 3, borderRadius: "18px", background: cardBg,
-                    border: `1px solid ${activeFolderColor}35`,
-                    backdropFilter: "blur(20px)",
-                  }}>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 20 }} transition={{ duration: 0.28 }} style={{ marginTop: 16 }}>
+                  <Box sx={{ p: 3, borderRadius: "18px", background: cardBg, border: `1px solid ${activeFolderColor}35`, backdropFilter: "blur(20px)" }}>
                     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-                      <Typography sx={{ fontWeight: 700, fontSize: "0.9rem", color: theme.palette.text.primary }}>
-                        File Details
-                      </Typography>
-                      <IconButton size="small" onClick={() => setSelected(null)}>
-                        <CloseRoundedIcon sx={{ fontSize: 16 }} />
-                      </IconButton>
+                      <Typography sx={{ fontWeight: 700, fontSize: "0.9rem", color: theme.palette.text.primary }}>File Details</Typography>
+                      <IconButton size="small" onClick={() => setSelected(null)}><CloseRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
                     </Box>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-                      <InsertDriveFileRoundedIcon sx={{ fontSize: 40, color: getExtColor(selected) }} />
-                      <Box>
+                    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2, mb: 2 }}>
+                      <InsertDriveFileRoundedIcon sx={{ fontSize: 40, color: getExtColor(fname(selected)), flexShrink: 0 }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography sx={{ fontWeight: 700, fontSize: "0.9rem", color: theme.palette.text.primary, wordBreak: "break-all" }}>
-                          {selected}
+                          {fname(selected)}
                         </Typography>
-                        <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
-                          <Chip label={getExt(selected)} size="small" sx={{ fontSize: "0.68rem", height: 18, background: `${getExtColor(selected)}18`, color: getExtColor(selected) }} />
+                        <Box sx={{ display: "flex", gap: 1, mt: 0.5, flexWrap: "wrap" }}>
+                          <Chip label={getExt(fname(selected))} size="small" sx={{ fontSize: "0.68rem", height: 18, background: `${getExtColor(fname(selected))}18`, color: getExtColor(fname(selected)) }} />
                           <Chip label={activeFolder} size="small" sx={{ fontSize: "0.68rem", height: 18, background: `${activeFolderColor}14`, color: activeFolderColor }} />
                           <Chip label={trfNumber} size="small" sx={{ fontSize: "0.68rem", height: 18 }} />
+                          {fsize(selected) && <Chip label={fsize(selected)} size="small" sx={{ fontSize: "0.68rem", height: 18 }} />}
+                          {fdate(selected) && <Chip label={fdate(selected)} size="small" sx={{ fontSize: "0.68rem", height: 18 }} />}
+                          {typeof selected === "object" && selected.uploaded_by && (
+                            <Chip label={`by ${selected.uploaded_by}`} size="small" sx={{ fontSize: "0.68rem", height: 18 }} />
+                          )}
+                          {typeof selected === "object" && selected.version_count > 1 && (
+                            <Chip label={`${selected.version_count} versions`} size="small" sx={{ fontSize: "0.68rem", height: 18, background: "rgba(99,102,241,0.1)", color: "#818cf8" }} />
+                          )}
                         </Box>
                       </Box>
                     </Box>
                     <Box sx={{ display: "flex", gap: 1.5 }}>
-                      <Button
-                        variant="contained" size="small"
-                        startIcon={<FileDownloadRoundedIcon />}
+                      <Button variant="contained" size="small" startIcon={<FileDownloadRoundedIcon />}
                         onClick={() => handleDownload(selected)}
-                        sx={{ borderRadius: "10px", flex: 1, background: "linear-gradient(135deg,#6366f1,#06b6d4)", boxShadow: "none" }}
-                      >
+                        sx={{ borderRadius: "10px", flex: 1, background: "linear-gradient(135deg,#6366f1,#06b6d4)", boxShadow: "none" }}>
                         Download
                       </Button>
-                      <Button
-                        variant="outlined" size="small"
-                        startIcon={<DeleteRoundedIcon />}
+                      <Button variant="outlined" size="small" startIcon={<DeleteRoundedIcon />}
                         onClick={() => handleDelete(selected)}
-                        sx={{ borderRadius: "10px", color: "#ef4444", borderColor: "rgba(239,68,68,0.4)", "&:hover": { background: "rgba(239,68,68,0.06)" } }}
-                      >
+                        sx={{ borderRadius: "10px", color: "#ef4444", borderColor: "rgba(239,68,68,0.4)", "&:hover": { background: "rgba(239,68,68,0.06)" } }}>
                         Delete
                       </Button>
                     </Box>

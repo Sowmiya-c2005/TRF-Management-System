@@ -19,6 +19,7 @@ const Users      = lazy(() => import("./pages/Users"));
 const Settings   = lazy(() => import("./pages/Settings"));
 const Profile        = lazy(() => import('./pages/Profile'));
 const Notifications  = lazy(() => import('./pages/Notifications'));
+const AuditLog       = lazy(() => import('./pages/AuditLog'));
 
 function PageLoader() {
   return (
@@ -41,12 +42,13 @@ function AppRoutes() {
         <Route path="/upload"    element={<ProtectedRoute allowedRoles={["Admin", "Engineer"]}><UploadFile /></ProtectedRoute>} />
         <Route path="/files"     element={<ProtectedRoute><FileManager /></ProtectedRoute>} />
         <Route path="/update"    element={<ProtectedRoute allowedRoles={["Admin", "Engineer"]}><UpdateTRF /></ProtectedRoute>} />
-        <Route path="/analytics" element={<ProtectedRoute allowedRoles={["Admin"]}><Analytics /></ProtectedRoute>} />
+        <Route path="/analytics" element={<ProtectedRoute allowedRoles={["Admin", "Manager"]}><Analytics /></ProtectedRoute>} />
         <Route path="/reports"   element={<ProtectedRoute allowedRoles={["Admin", "Engineer", "Manager"]}><Reports /></ProtectedRoute>} />
         <Route path="/users"     element={<ProtectedRoute allowedRoles={["Admin"]}><Users /></ProtectedRoute>} />
         <Route path="/settings"  element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/profile"        element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/notifications"  element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+        <Route path="/audit"          element={<ProtectedRoute allowedRoles={["Admin"]}><AuditLog /></ProtectedRoute>} />
         <Route path="*"               element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

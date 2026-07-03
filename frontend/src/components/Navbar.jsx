@@ -47,6 +47,7 @@ const ROUTE_META = {
   "/settings":     { label: "Settings",     icon: null },
   "/profile":      { label: "Profile",      icon: null },
   "/notifications":{ label: "Notifications",icon: null },
+  "/audit":        { label: "Audit Log",    icon: null },
 };
 
 // Live Clock component

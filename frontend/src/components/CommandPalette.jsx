@@ -32,6 +32,7 @@ const ALL_COMMANDS = [
   { id: "nav-users",    label: "User Management",     path: "/users",     icon: <PeopleRoundedIcon />,       category: "Navigate" },
   { id: "nav-settings", label: "Settings",            path: "/settings",  icon: <SettingsRoundedIcon />,     category: "Navigate" },
   { id: "nav-profile",  label: "My Profile",          path: "/profile",   icon: <PeopleRoundedIcon />,       category: "Navigate" },
+  { id: "nav-audit",    label: "Audit Log",            path: "/audit",     icon: <AssessmentRoundedIcon />,   category: "Navigate" },
 ];
 
 export default function CommandPalette({ open, onClose }) {

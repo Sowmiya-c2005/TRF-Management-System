@@ -16,7 +16,7 @@ from backend.utils.logging_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger("main")
 
-from backend.api import trf_routes, file_routes, user_routes, audit_routes, notification_routes
+from backend.api import trf_routes, file_routes, user_routes, audit_routes, notification_routes, qr_routes, storage_routes
 from backend.database.database import get_db
 from backend.middleware.exception_handlers import register_exception_handlers
 from backend.schemas.trf_schema import TRFCreate
@@ -47,6 +47,8 @@ app.include_router(file_routes.router)
 app.include_router(user_routes.router)
 app.include_router(audit_routes.router)
 app.include_router(notification_routes.router)
+app.include_router(qr_routes.router)
+app.include_router(storage_routes.router)
 
 logger.info("FastAPI application routers successfully loaded.")
 
@@ -127,6 +129,9 @@ def legacy_download_file(trf_number: str, folder_name: str, file_name: str, db: 
 @app.post("/login")
 def legacy_login(username: str, password: str, db: Session = Depends(get_db)):
     user = user_service.authenticate_user(db, username, password)
+    from backend.services import audit_service
+    audit_service.log_action(db, user_id=user.id, action="LOGIN",
+                             details=f"User '{user.username}' logged in via legacy endpoint.")
     return {"message": "Login Successful", "username": user.username, "role": user.role}
 
 

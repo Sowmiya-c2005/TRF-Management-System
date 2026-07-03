@@ -27,6 +27,7 @@ import TagRoundedIcon           from "@mui/icons-material/TagRounded";
 
 import { uploadFile } from "../services/fileService";
 import { useApp }     from "../context/AppContext";
+import { usePermission } from "../hooks/usePermission";
 
 const FOLDERS = ["Documents", "Reports", "Drawings", "Approvals", "Final Submission"];
 
@@ -55,6 +56,7 @@ export default function UploadFile() {
   const isDark = theme.palette.mode === "dark";
   const [params] = useSearchParams();
   const { addActivity, addNotification, user } = useApp();
+  const { can } = usePermission();
 
   const [trfNumber, setTrfNumber] = useState(params.get("trf") || "");
   const [folder,    setFolder]    = useState(FOLDERS[0]);
@@ -116,6 +118,19 @@ export default function UploadFile() {
 
   const allDone = files.length > 0 && files.every(f => statuses[f.name] === "done");
   const totalProgress = files.length === 0 ? 0 : Math.round(files.reduce((acc, f) => acc + (progress[f.name] || 0), 0) / files.length);
+
+  // Viewers cannot upload
+  if (!can("upload_file")) {
+    return (
+      <Box sx={{ maxWidth: 480, mx: "auto", mt: 6, textAlign: "center" }}>
+        <CloudUploadRoundedIcon sx={{ fontSize: 56, color: "#94a3b8", mb: 2 }} />
+        <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>Upload Not Permitted</Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          Your role does not have permission to upload files. Contact an Admin or Engineer.
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ maxWidth: 680, mx: "auto" }}>
