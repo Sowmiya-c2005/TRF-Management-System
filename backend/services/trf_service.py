@@ -11,7 +11,11 @@ from backend.repositories.trf_repository import TRFRepository
 from backend.repositories.folder_repository import FolderRepository
 from backend.services.sharepoint_service import SharePointService
 from backend.services import audit_service, notification_service
+from backend.services.email_service import (
+    send_system_email, email_trf_created, email_trf_updated
+)
 from backend.services.storage_service import get_storage_root
+from backend.repositories.user_repository import UserRepository
 from backend.utils.logging_config import get_logger
 
 logger = get_logger("trf_service")
@@ -21,6 +25,7 @@ TRF_SUBFOLDERS = ["Documents", "Reports", "Drawings", "Approvals", "Final Submis
 trf_repo       = TRFRepository()
 folder_repo    = FolderRepository()
 sharepoint_svc = SharePointService()
+user_repo_inst = UserRepository()
 
 
 def get_all_trfs(db: Session) -> list[TRFRecord]:
@@ -43,6 +48,13 @@ def get_dashboard_stats(db: Session) -> dict:
 
 
 def create_trf(db: Session, payload: TRFCreate, current_user: Optional[User] = None) -> TRFRecord:
+    import re
+    if not re.match(r'^TRF-\d{4}-\d+$', payload.trf_number.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid TRF Number. Please use the format: TRF-YYYY-Number (Example: TRF-2026-1)"
+        )
+
     if trf_repo.get_by_number(db, payload.trf_number):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"TRF '{payload.trf_number}' already exists.")
@@ -91,6 +103,14 @@ def create_trf(db: Session, payload: TRFCreate, current_user: Optional[User] = N
         title=f"TRF Created: {payload.trf_number}",
         body=f"'{payload.trf_number}' created by '{user_name}'. Folders at: {root_path}",
         notif_type="trf")
+
+    # Send email to all admins (uses live DB email — picks up email changes immediately)
+    try:
+        actor_role = current_user.role if current_user else "System"
+        email_trf_created(db, payload.trf_number, payload.project_name, user_name, actor_role)
+    except Exception as e:
+        logger.warning(f"TRF creation email error: {e}")
+
     return new_trf
 
 
@@ -106,6 +126,13 @@ def update_trf(db: Session, trf_number: str, project_name: str, current_user: Op
     notification_service.create_notification(db, user_id=None,
         title=f"TRF Updated: {trf_number}",
         body=f"Project name changed to '{project_name}' by '{user_name}'.", notif_type="trf")
+    # Email admins on update (only for Engineer/Manager actions)
+    try:
+        actor_role = current_user.role if current_user else "System"
+        if actor_role in ("Engineer", "Manager"):
+            email_trf_updated(db, trf_number, old, project_name, user_name, actor_role)
+    except Exception as e:
+        logger.warning(f"TRF update email error: {e}")
     return trf
 
 

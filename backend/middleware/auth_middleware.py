@@ -27,32 +27,28 @@ def get_current_user(
     db: Session = Depends(get_db)
 ) -> User:
     """
-    FastAPI dependency that extracts and validates the JWT access token.
-    If REQUIRE_AUTH=False and no token is supplied, returns a fallback default admin user.
+    Extract and validate the JWT access token.
+    If REQUIRE_AUTH=False and no token is supplied, returns the first Admin in DB.
     """
     token = credentials.credentials if credentials else None
 
     if not token:
         if not REQUIRE_AUTH:
-            # Lenient mode: return/create a default Admin user to ensure frontend compatibility
-            default_username = "admin"
-            user = user_repo.get_by_username(db, default_username)
+            # Return the actual first Admin user from DB — NOT a hardcoded fallback
+            user = db.query(User).filter(User.role == "Admin", User.is_active == True).first()
             if not user:
-                # Create a default admin user if one doesn't exist
-                # Password is "admin123" (hashed)
+                # Only if truly no admin exists, create one
                 import bcrypt
-                salt = bcrypt.gensalt()
-                hashed_pw = bcrypt.hashpw(b"admin123", salt).decode("utf-8")
-                
                 user = User(
-                    username=default_username,
-                    password=hashed_pw,
-                    role="Admin"
+                    username="admin",
+                    password=bcrypt.hashpw(b"Admin@123", bcrypt.gensalt()).decode(),
+                    role="Admin",
+                    is_active=True,
                 )
                 db.add(user)
                 db.commit()
                 db.refresh(user)
-                logger.info(f"Created default admin user for development/lenient mode.")
+                logger.info("Created initial admin user.")
             return user
         else:
             raise HTTPException(
@@ -81,6 +77,14 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found."
         )
+    
+    # Check if user is active
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account has been deactivated. Please contact administrator."
+        )
+    
     return user
 
 
@@ -102,3 +106,11 @@ class RoleChecker:
                 detail="You do not have permission to perform this action."
             )
         return current_user
+
+
+# Common role checkers for convenience
+require_admin = RoleChecker(["Admin"])
+require_manager_or_admin = RoleChecker(["Admin", "Manager"])
+require_engineer_or_admin = RoleChecker(["Admin", "Engineer"])
+require_manager_or_engineer = RoleChecker(["Admin", "Manager", "Engineer"])
+require_any_role = RoleChecker(["Admin", "Manager", "Engineer"])

@@ -11,6 +11,8 @@ class AuditLog(Base):
     action = Column(String, nullable=False, index=True)
     details = Column(String, nullable=True)
     ip_address = Column(String, nullable=True)
+    old_value = Column(String, nullable=True)  # For tracking field changes
+    new_value = Column(String, nullable=True)  # For tracking field changes
     created_at = Column(
         TIMESTAMP,
         server_default=text("CURRENT_TIMESTAMP"),

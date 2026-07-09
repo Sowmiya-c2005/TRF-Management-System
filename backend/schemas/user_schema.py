@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
@@ -6,11 +6,12 @@ from datetime import datetime
 # ── Requests ──────────────────────────────────────────────────────────────────
 
 class UserCreate(BaseModel):
-    username:     str = Field(..., min_length=3,  description="Unique username")
-    password:     str = Field(..., min_length=6,  description="Password (min 6 chars)")
+    username:     str           = Field(..., min_length=3)
+    password:     str           = Field(..., min_length=6)
     email:        Optional[str] = None
     display_name: Optional[str] = None
-    role:         Optional[str] = "Engineer"       # Admin can override
+    phone:        Optional[str] = None
+    role:         Optional[str] = "Engineer"
 
 
 class UserLogin(BaseModel):
@@ -21,15 +22,25 @@ class UserLogin(BaseModel):
 class UserUpdate(BaseModel):
     email:        Optional[str] = None
     display_name: Optional[str] = None
+    phone:        Optional[str] = None
+    avatar_url:   Optional[str] = None
 
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
+    new_password:     str = Field(..., min_length=6)
+
+
+class AdminResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=6)
 
 
 class RoleUpdateRequest(BaseModel):
-    role: str = Field(..., description="New role: Admin | Engineer | Manager | Viewer")
+    role: str = Field(..., description="New role: Admin | Engineer | Manager")
+
+
+class UserStatusRequest(BaseModel):
+    is_active: bool
 
 
 # ── Responses ─────────────────────────────────────────────────────────────────
@@ -43,12 +54,16 @@ class UserResponse(BaseModel):
 
 
 class UserProfileResponse(BaseModel):
-    id:           int
-    username:     str
-    role:         str
-    email:        Optional[str]
-    display_name: Optional[str]
-    created_at:   datetime
+    id:            int
+    username:      str
+    role:          str
+    email:         Optional[str]  = None
+    display_name:  Optional[str]  = None
+    phone:         Optional[str]  = None
+    avatar_url:    Optional[str]  = None
+    is_active:     bool           = True
+    last_login_at: Optional[datetime] = None
+    created_at:    datetime
 
     model_config = {"from_attributes": True}
 

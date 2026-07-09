@@ -59,3 +59,13 @@ def read_single_notification(
 ):
     """Mark a single notification as read."""
     return notification_service.mark_as_read(db, notification_id)
+
+
+@router.get("/unread-count")
+def get_unread_count(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get count of unread notifications."""
+    count = notification_service.get_unread_count(db, current_user.id)
+    return {"unread_count": count}

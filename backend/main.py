@@ -16,7 +16,7 @@ from backend.utils.logging_config import setup_logging, get_logger
 setup_logging()
 logger = get_logger("main")
 
-from backend.api import trf_routes, file_routes, user_routes, audit_routes, notification_routes, qr_routes, storage_routes
+from backend.api import trf_routes, file_routes, user_routes, audit_routes, notification_routes, qr_routes, storage_routes, assignment_routes, activity_routes, comment_routes, dashboard_routes, search_routes
 from backend.database.database import get_db
 from backend.middleware.exception_handlers import register_exception_handlers
 from backend.schemas.trf_schema import TRFCreate
@@ -49,6 +49,11 @@ app.include_router(audit_routes.router)
 app.include_router(notification_routes.router)
 app.include_router(qr_routes.router)
 app.include_router(storage_routes.router)
+app.include_router(assignment_routes.router)
+app.include_router(activity_routes.router)
+app.include_router(comment_routes.router)
+app.include_router(dashboard_routes.router)
+app.include_router(search_routes.router)
 
 logger.info("FastAPI application routers successfully loaded.")
 

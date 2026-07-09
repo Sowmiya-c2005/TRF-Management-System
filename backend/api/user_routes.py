@@ -1,6 +1,5 @@
 """
-User & Auth API routes.
-Prefix: /users
+User & Auth API routes.  Prefix: /users
 """
 from fastapi import APIRouter, Depends, status, Request
 from sqlalchemy.orm import Session
@@ -11,6 +10,7 @@ from backend.schemas.user_schema import (
     TokenRefreshRequest, TokenRefreshResponse,
     UserProfileResponse, UserUpdate,
     ChangePasswordRequest, RoleUpdateRequest,
+    AdminResetPasswordRequest, UserStatusRequest,
 )
 from backend.services import user_service, audit_service, notification_service
 from backend.middleware.auth_middleware import get_current_user, RoleChecker
@@ -19,11 +19,10 @@ from backend.models.user_model import User
 router = APIRouter(prefix="/users", tags=["Users & Auth"])
 
 
-# ── Auth ───────────────────────────────────────────────────────────────────────
+# ── Auth ──────────────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user. First user is always Admin."""
     user = user_service.register_user(db, payload)
     audit_service.log_action(db, user_id=user.id, action="REGISTER",
                              details=f"User '{user.username}' registered (role: {user.role}).")
@@ -32,27 +31,24 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=UserResponse)
 def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
-    """Authenticate a user and return JWT access + refresh tokens."""
     user  = user_service.authenticate_user(db, payload.username, payload.password)
     token = user_service.create_access_token({"sub": user.username, "role": user.role})
     rtok  = user_service.create_refresh_token({"sub": user.username})
     user_service.store_refresh_token(db, user, rtok)
-
     ip = request.client.host if request.client else None
     audit_service.log_action(db, user_id=user.id, action="LOGIN",
                              details=f"User '{user.username}' logged in.", ip_address=ip)
     return {
-        "message":       "Login successful",
-        "username":      user.username,
-        "role":          user.role,
-        "token":         token,
+        "message": "Login successful",
+        "username": user.username,
+        "role": user.role,
+        "token": token,
         "refresh_token": rtok,
     }
 
 
 @router.post("/refresh", response_model=TokenRefreshResponse)
 def refresh(payload: TokenRefreshRequest, db: Session = Depends(get_db)):
-    """Issue new access + refresh tokens from a valid refresh token."""
     user     = user_service.verify_refresh_token(db, payload.refresh_token)
     new_tok  = user_service.create_access_token({"sub": user.username, "role": user.role})
     new_rtok = user_service.create_refresh_token({"sub": user.username})
@@ -62,18 +58,16 @@ def refresh(payload: TokenRefreshRequest, db: Session = Depends(get_db)):
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 def logout(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Revoke refresh token."""
     user_service.clear_refresh_token(db, current_user)
     audit_service.log_action(db, user_id=current_user.id, action="LOGOUT",
                              details=f"User '{current_user.username}' logged out.")
     return {"message": "Logged out successfully"}
 
 
-# ── Profile ────────────────────────────────────────────────────────────────────
+# ── My Profile ────────────────────────────────────────────────────────────────
 
 @router.get("/me", response_model=UserProfileResponse)
 def get_me(current_user: User = Depends(get_current_user)):
-    """Return the current user's profile."""
     return current_user
 
 
@@ -83,7 +77,12 @@ def update_me(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update display name / email."""
+    """
+    Update the current user's own profile (name, email, phone, avatar).
+    Email uniqueness is validated — returns 409 if duplicate.
+    If email changes, refresh token is revoked (frontend must re-login).
+    """
+    email_before = current_user.email
     updated = user_service.update_profile(db, current_user, payload)
     audit_service.log_action(db, user_id=current_user.id, action="UPDATE_PROFILE",
                              details=f"User '{current_user.username}' updated profile.")
@@ -96,23 +95,36 @@ def change_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Change the current user's password."""
     user_service.change_password(db, current_user, payload.current_password, payload.new_password)
     audit_service.log_action(db, user_id=current_user.id, action="CHANGE_PASSWORD",
                              details=f"User '{current_user.username}' changed password.")
-    return {"message": "Password updated successfully. Please log in again."}
+    return {"message": "Password updated successfully."}
 
 
-# ── Admin user management ──────────────────────────────────────────────────────
+# ── Admin: list & create ──────────────────────────────────────────────────────
 
 @router.get("/", response_model=list[UserProfileResponse])
-def list_users(
-    db: Session = Depends(get_db),
-    _: User = Depends(RoleChecker(["Admin"])),
-):
-    """List all users. Admin only."""
+def list_users(db: Session = Depends(get_db), _: User = Depends(RoleChecker(["Admin"]))):
     return user_service.get_all_users(db)
 
+
+@router.post("/", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED)
+def create_user(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["Admin"])),
+):
+    user = user_service.register_user(db, payload, admin_override_role=payload.role)
+    audit_service.log_action(db, user_id=current_user.id, action="CREATE_USER",
+                             details=f"Admin created user '{user.username}' role='{user.role}'.")
+    notification_service.create_notification(db, user_id=user.id,
+        title="Welcome to TRF Portal",
+        body=f"Your account has been created by Admin. Username: {user.username}",
+        notif_type="user")
+    return user
+
+
+# ── Admin: edit / role / status / reset-password / delete ────────────────────
 
 @router.put("/{user_id}/role", response_model=UserProfileResponse)
 def update_role(
@@ -121,11 +133,64 @@ def update_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(RoleChecker(["Admin"])),
 ):
-    """Change a user's role. Admin only."""
     user    = user_service.get_user_by_id(db, user_id)
     updated = user_service.set_role(db, user, payload.role)
     audit_service.log_action(db, user_id=current_user.id, action="UPDATE_ROLE",
-                             details=f"Admin '{current_user.username}' changed '{user.username}' role → '{payload.role}'.")
+                             details=f"Admin changed '{user.username}' role → '{payload.role}'.")
+    return updated
+
+
+@router.put("/{user_id}/status", response_model=UserProfileResponse)
+def update_status(
+    user_id: int,
+    payload: UserStatusRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["Admin"])),
+):
+    from datetime import datetime, timezone
+    from fastapi import HTTPException as HE
+    user = user_service.get_user_by_id(db, user_id)
+    if user.id == current_user.id:
+        raise HE(status_code=400, detail="Cannot deactivate your own account.")
+    user.is_active  = payload.is_active
+    user.updated_at = datetime.now(timezone.utc)
+    from backend.repositories.user_repository import UserRepository
+    UserRepository().commit(db)
+    action = "ACTIVATE_USER" if payload.is_active else "DEACTIVATE_USER"
+    audit_service.log_action(db, user_id=current_user.id, action=action,
+                             details=f"Admin {'activated' if payload.is_active else 'deactivated'} user '{user.username}'.")
+    return user
+
+
+@router.post("/{user_id}/reset-password", status_code=status.HTTP_200_OK)
+def admin_reset_password(
+    user_id: int,
+    payload: AdminResetPasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["Admin"])),
+):
+    import bcrypt
+    from backend.repositories.user_repository import UserRepository
+    user = user_service.get_user_by_id(db, user_id)
+    user.password      = bcrypt.hashpw(payload.new_password.encode(), bcrypt.gensalt()).decode()
+    user.refresh_token = None
+    UserRepository().commit(db)
+    audit_service.log_action(db, user_id=current_user.id, action="RESET_PASSWORD",
+                             details=f"Admin reset password for '{user.username}'.")
+    return {"message": f"Password reset for '{user.username}'."}
+
+
+@router.put("/{user_id}", response_model=UserProfileResponse)
+def admin_update_user(
+    user_id: int,
+    payload: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["Admin"])),
+):
+    user    = user_service.get_user_by_id(db, user_id)
+    updated = user_service.update_profile(db, user, payload)
+    audit_service.log_action(db, user_id=current_user.id, action="ADMIN_UPDATE_USER",
+                             details=f"Admin updated profile for '{user.username}'.")
     return updated
 
 
@@ -135,12 +200,11 @@ def delete_user(
     db: Session = Depends(get_db),
     current_user: User = Depends(RoleChecker(["Admin"])),
 ):
-    """Delete a user. Admin only."""
+    from fastapi import HTTPException as HE
     target = user_service.get_user_by_id(db, user_id)
     if target.id == current_user.id:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=400, detail="Cannot delete your own account.")
+        raise HE(status_code=400, detail="Cannot delete your own account.")
     user_service.delete_user(db, user_id)
     audit_service.log_action(db, user_id=current_user.id, action="DELETE_USER",
-                             details=f"Admin '{current_user.username}' deleted user '{target.username}'.")
+                             details=f"Admin deleted user '{target.username}'.")
     return {"message": f"User '{target.username}' deleted."}

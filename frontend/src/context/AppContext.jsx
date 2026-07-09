@@ -143,6 +143,16 @@ export function AppProvider({ children }) {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  const fetchUnreadCount = useCallback(async () => {
+    if (!hasToken()) return;
+    try {
+      const res = await API.get("/notifications/unread-count");
+      return res.data.unread_count || 0;
+    } catch {
+      return unreadCount;
+    }
+  }, [unreadCount]);
+
   const markRead = useCallback((id) => {
     // Optimistic local update — fire API only when token exists
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
@@ -231,7 +241,7 @@ export function AppProvider({ children }) {
         user, signIn, signOut, updateUser,
         isAuthenticated: !!user,
         // notifications
-        notifications, unreadCount,
+        notifications, unreadCount, fetchUnreadCount,
         markRead, markAllRead, clearNotifications, addNotification,
         // activity
         activities, addActivity,

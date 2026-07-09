@@ -18,6 +18,7 @@ from backend.repositories.folder_repository import FolderRepository
 from backend.repositories.trf_repository import TRFRepository
 from backend.services.sharepoint_service import SharePointService
 from backend.services import audit_service, notification_service
+from backend.services.email_service import email_file_uploaded, email_file_deleted
 from backend.services.storage_service import get_storage_root
 from backend.utils.logging_config import get_logger
 
@@ -160,6 +161,13 @@ def save_file(
     notification_service.create_notification(db, user_id=None, title="File Uploaded",
         body=f"'{file.filename}' v{version_label} uploaded to '{trf_number}/{folder_name}' by '{user_name}'.",
         notif_type="file")
+    # Email admins when Engineer/Manager uploads
+    try:
+        actor_role = current_user.role if current_user else "System"
+        if actor_role in ("Engineer", "Manager"):
+            email_file_uploaded(db, trf_number, folder_name, file.filename, user_name, actor_role)
+    except Exception as e:
+        logger.warning(f"File upload email error: {e}")
     return file.filename
 
 
@@ -198,6 +206,82 @@ def remove_file(
     notification_service.create_notification(db, user_id=None, title="File Deleted",
         body=f"'{file_name}' deleted from '{trf_number}/{folder_name}' by '{user_name}'.",
         notif_type="file")
+    # Email admins when Engineer/Manager deletes
+    try:
+        actor_role = current_user.role if current_user else "System"
+        if actor_role in ("Engineer", "Manager"):
+            email_file_deleted(db, trf_number, folder_name, file_name, user_name, actor_role)
+    except Exception as e:
+        logger.warning(f"File delete email error: {e}")
+
+
+def replace_file(
+    db: Session,
+    trf_number: str,
+    folder_name: str,
+    file_name: str,
+    new_file: UploadFile,
+    current_user: Optional[User] = None,
+) -> str:
+    """Replace an existing file with a new version."""
+    folder = _get_folder(db, trf_number, folder_name)
+    record = file_repo.get_by_folder_and_name(db, folder.id, file_name)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"File '{file_name}' not found.")
+
+    # Read new file content
+    file_content = new_file.file.read()
+    
+    # Get next version number
+    latest = (db.query(FileVersion)
+              .filter(FileVersion.file_record_id == record.id)
+              .order_by(FileVersion.version_number.desc())
+              .first())
+    next_ver = (latest.version_number + 1) if latest else 2
+
+    # Save new version
+    local_dir = _folder_path(db, trf_number, folder_name)
+    base, ext = os.path.splitext(file_name)
+    ver_name = f"{base}_v{next_ver}{ext}"
+    dest_path = os.path.join(local_dir, ver_name)
+
+    with open(dest_path, "wb") as fh:
+        fh.write(file_content)
+
+    # Upload to SharePoint
+    sp_id = sharepoint_service.upload_file(trf_number, folder_name, file_name, file_content)
+
+    # Create version record
+    user_id = current_user.id if current_user else None
+    db.add(FileVersion(
+        file_record_id=record.id,
+        version_number=next_ver,
+        filename=file_name,
+        file_path=dest_path,
+        size_bytes=len(file_content),
+        uploaded_by_id=user_id,
+        sharepoint_id=sp_id,
+    ))
+
+    # Update main record
+    record.size_bytes = len(file_content)
+    record.file_path = dest_path
+    record.sharepoint_id = sp_id
+    if user_id:
+        record.uploaded_by_id = user_id
+
+    db.commit()
+
+    user_name = current_user.username if current_user else "System"
+    audit_service.log_action(db, user_id=user_id, action="REPLACE_FILE",
+        details=f"Replaced '{file_name}' with v{next_ver} in '{trf_number}/{folder_name}'.")
+    notification_service.create_notification(db, user_id=None, title="File Replaced",
+        body=f"'{file_name}' replaced with v{next_ver} in '{trf_number}/{folder_name}' by '{user_name}'.",
+        notif_type="file")
+
+    logger.info(f"File replaced: '{file_name}' → v{next_ver}")
+    return file_name
 
 
 def get_file_path(db: Session, trf_number: str, folder_name: str, file_name: str) -> str:

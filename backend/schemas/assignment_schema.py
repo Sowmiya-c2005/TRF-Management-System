@@ -1,0 +1,32 @@
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime
+
+
+class TRFAssignmentRequest(BaseModel):
+    trf_id: int = Field(..., description="TRF ID to assign")
+    manager_id: Optional[int] = Field(None, description="Manager ID to assign")
+    engineer_ids: List[int] = Field(default_factory=list, description="List of Engineer IDs to assign")
+
+
+class TRFAssignmentResponse(BaseModel):
+    id: int
+    trf_id: int
+    engineer_id: int
+    assigned_at: datetime
+    assigned_by_id: Optional[int]
+
+    model_config = {"from_attributes": True}
+
+
+class TRFStatusUpdateRequest(BaseModel):
+    status: str = Field(..., description="New status: Draft | Assigned | In Progress | Under Review | Approved | Completed | Archived")
+
+
+class TRFStatusResponse(BaseModel):
+    trf_id: int
+    trf_number: str
+    status: str
+    status_updated_at: Optional[datetime]
+
+    model_config = {"from_attributes": True}

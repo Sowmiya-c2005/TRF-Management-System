@@ -57,25 +57,22 @@ const ViewerIcon = () => (
 
 /* ─────────────────────────────────────────────────────────────────
    ROLES — exact reference colours
-   Admin:    dark purple-grey glass
-   Engineer: teal-blue glass (lighter)
+   Admin:    dark purple glass
+   Engineer: teal-blue glass
    Manager:  gold-brown glass
-   Viewer:   teal-emerald glass
 ───────────────────────────────────────────────────────────────── */
 const ROLES = [
   {
     key:"Admin",    label:"Administrator", username:"admin",    password:"Admin@123",
-    /* reference: dark purple-grey frosted glass — muted, slightly metallic */
-    cardBg:  "linear-gradient(135deg, rgba(140, 92, 149, 0.78) 0%, rgba(42,22,90,0.65) 100%)",
-    backBg:  "linear-gradient(135deg, rgba(50,28,100,0.68) 0%, rgba(30,14,68,0.55) 100%)",
-    border:  "rgba(180,155,255,0.60)",
-    glow:    "rgba(139,92,246,0.85)",
+    cardBg:  "linear-gradient(135deg, rgba(58,22,148,0.80) 0%, rgba(38,12,90,0.68) 100%)",
+    backBg:  "linear-gradient(135deg, rgba(45,16,110,0.70) 0%, rgba(28,8,72,0.58) 100%)",
+    border:  "rgba(180,155,255,0.62)",
+    glow:    "rgba(139,92,246,0.88)",
     accent:  "#c4b5fd",
     Icon: AdminIcon,
   },
   {
     key:"Engineer", label:"Engineer",       username:"engineer", password:"Engineer@123",
-    /* reference: bright teal-cyan glass — lighter and more vivid than admin */
     cardBg:  "linear-gradient(135deg, rgba(8,108,155,0.80) 0%, rgba(0,68,108,0.68) 100%)",
     backBg:  "linear-gradient(135deg, rgba(0,82,122,0.70)  0%, rgba(0,50,88,0.58)  100%)",
     border:  "rgba(56,210,245,0.65)",
@@ -85,23 +82,12 @@ const ROLES = [
   },
   {
     key:"Manager",  label:"Manager",        username:"manager",  password:"Manager@123",
-    /* reference: amber-gold warm glass */
     cardBg:  "linear-gradient(135deg, rgba(120,72,8,0.78)  0%, rgba(78,42,0,0.65)  100%)",
     backBg:  "linear-gradient(135deg, rgba(95,55,4,0.68)   0%, rgba(62,32,0,0.55)  100%)",
     border:  "rgba(252,196,42,0.62)",
     glow:    "rgba(245,158,11,0.88)",
     accent:  "#fcd34d",
     Icon: ManagerIcon,
-  },
-  {
-    key:"Viewer",   label:"Viewer",          username:"viewer",   password:"Viewer@123",
-    /* reference: emerald-teal glass */
-    cardBg:  "linear-gradient(135deg, rgba(5,108,72,0.78)  0%, rgba(0,65,45,0.65)  100%)",
-    backBg:  "linear-gradient(135deg, rgba(0,82,55,0.68)   0%, rgba(0,50,34,0.55)  100%)",
-    border:  "rgba(52,215,158,0.62)",
-    glow:    "rgba(16,185,129,0.88)",
-    accent:  "#6ee7b7",
-    Icon: ViewerIcon,
   },
 ];
 
@@ -623,8 +609,8 @@ export default function Login() {
               </p>
             </motion.div>
 
-            {/* 2×2 card grid — perspective container */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,maxWidth:620,perspective:"1000px"}}>
+            {/* 3-card grid — perspective container */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20,maxWidth:660,perspective:"1000px"}}>
               {ROLES.map((r,i) => (
                 <motion.div key={r.key} initial={{opacity:0,y:32}} animate={{opacity:1,y:0}} transition={{delay:.26+i*.09}}>
                   <RoleCard role={r} idx={i} selected={sel===r.key} onSelect={pick}/>

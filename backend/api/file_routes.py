@@ -119,3 +119,17 @@ def sync_files(
     """Synchronize database records with local storage and SharePoint. Accessible by all authenticated users."""
     synced = file_service.sync_local_and_sharepoint(db, trf_number, folder_name)
     return {"message": f"Successfully synchronized {synced} file(s)."}
+
+
+@router.put("/{trf_number}/{folder_name}/{file_name}/replace", response_model=MessageResponse)
+def replace_file(
+    trf_number: str,
+    folder_name: str,
+    file_name: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))
+):
+    """Replace an existing file with a new version. Accessible by Admin and Engineer."""
+    saved_name = file_service.replace_file(db, trf_number, folder_name, file_name, file, current_user=current_user)
+    return {"message": f"File '{saved_name}' replaced successfully"}

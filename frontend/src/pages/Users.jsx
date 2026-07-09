@@ -35,12 +35,11 @@ import VisibilityOffRoundedIcon  from "@mui/icons-material/VisibilityOffRounded"
 import API from "../services/api";
 import { useApp } from "../context/AppContext";
 
-const ROLES = ["Admin", "Engineer", "Manager", "Viewer"];
+const ROLES = ["Admin", "Engineer", "Manager"];
 const ROLE_COLORS = {
   Admin:     { bg: "rgba(99,102,241,0.12)",  color: "#818cf8" },
   Engineer:  { bg: "rgba(6,182,212,0.12)",   color: "#22d3ee" },
   Manager:   { bg: "rgba(245,158,11,0.12)",  color: "#fbbf24" },
-  Viewer:    { bg: "rgba(16,185,129,0.12)",  color: "#34d399" },
 };
 
 function avatarColor(name = "") {
@@ -66,7 +65,7 @@ function InviteDialog({ open, onClose, onSuccess }) {
     }
     setLoading(true);
     try {
-      await API.post("/users/register", form);
+      await API.post("/users/", { ...form, role: form.role });
       toast.success(`User "${form.username}" created!`);
       onSuccess(form);
       reset(); onClose();
@@ -207,6 +206,26 @@ export default function Users() {
     } catch (e) { toast.error(e.message || "Delete failed"); }
   };
 
+  const handleToggleActive = async (u) => {
+    const action = u.is_active === false ? "activate" : "deactivate";
+    if (!window.confirm(`${action.charAt(0).toUpperCase()+action.slice(1)} "${u.username}"?`)) return;
+    try {
+      const { data } = await API.put(`/users/${u.id}/status`, { is_active: u.is_active === false });
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: data.is_active } : x));
+      toast.success(`User "${u.username}" ${action}d`);
+    } catch (e) { toast.error(e?.response?.data?.detail || "Failed"); }
+  };
+
+  const handleResetPassword = async (u) => {
+    const newPwd = window.prompt(`Enter new password for "${u.username}" (min 6 chars):`);
+    if (!newPwd) return;
+    if (newPwd.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    try {
+      await API.post(`/users/${u.id}/reset-password`, { new_password: newPwd });
+      toast.success(`Password reset for "${u.username}"`);
+    } catch (e) { toast.error(e?.response?.data?.detail || "Reset failed"); }
+  };
+
   return (
     <motion.div variants={stagger} initial="initial" animate="animate">
       <motion.div variants={fadeUp}>
@@ -300,6 +319,16 @@ export default function Users() {
                     </Box>
                     <Chip label={u.role} size="small"
                       sx={{ fontWeight: 700, fontSize: "0.7rem", height: 22, background: rc.bg, color: rc.color }} />
+                    {/* Active/Inactive badge */}
+                    <Chip
+                      label={u.is_active === false ? "Inactive" : "Active"}
+                      size="small"
+                      sx={{
+                        height: 18, fontSize: "0.62rem", fontWeight: 700,
+                        background: u.is_active === false ? "rgba(239,68,68,0.12)" : "rgba(16,185,129,0.12)",
+                        color: u.is_active === false ? "#f87171" : "#34d399",
+                      }}
+                    />
                     {/* Admin actions */}
                     {me?.role === "Admin" && !isMe && (
                       <Box sx={{ display: "flex", gap: 0.5 }}>
@@ -307,6 +336,20 @@ export default function Users() {
                           <IconButton size="small" onClick={() => setRoleTarget(u)}
                             sx={{ "&:hover": { color: "#f59e0b", background: "rgba(245,158,11,0.1)" }, borderRadius: "8px" }}>
                             <EditRoundedIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title={u.is_active === false ? "Activate user" : "Deactivate user"}>
+                          <IconButton size="small" onClick={() => handleToggleActive(u)}
+                            sx={{ "&:hover": { color: u.is_active === false ? "#34d399" : "#f87171", background: u.is_active === false ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)" }, borderRadius: "8px" }}>
+                            {u.is_active === false
+                              ? <VisibilityRoundedIcon sx={{ fontSize: 16 }} />
+                              : <VisibilityOffRoundedIcon sx={{ fontSize: 16 }} />}
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Reset password">
+                          <IconButton size="small" onClick={() => handleResetPassword(u)}
+                            sx={{ "&:hover": { color: "#a855f7", background: "rgba(168,85,247,0.1)" }, borderRadius: "8px" }}>
+                            <LockRoundedIcon sx={{ fontSize: 16 }} />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete user">

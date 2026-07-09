@@ -22,3 +22,9 @@ class NotificationRepository(BaseRepository[Notification]):
             self.model.read.is_(False)
         ).update({"read": True}, synchronize_session=False)
         db.commit()
+
+    def get_unread_count(self, db: Session, user_id: int) -> int:
+        return db.query(self.model).filter(
+            (self.model.user_id == user_id) | (self.model.user_id.is_(None)),
+            self.model.read.is_(False)
+        ).count()

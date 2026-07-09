@@ -52,16 +52,29 @@ export default function CreateTRF() {
   const cardBg = isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.88)";
   const border  = isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.2)";
 
+  const TRF_REGEX = /^TRF-\d{4}-\d+$/;
+
   const validate = () => {
     const e = {};
-    if (!trfNumber.trim())   e.trfNumber   = "TRF number is required";
+    const num = trfNumber.trim();
+    if (!num) {
+      e.trfNumber = "TRF number is required";
+    } else if (!TRF_REGEX.test(num)) {
+      e.trfNumber = "Invalid TRF Number. Please use the format: TRF-YYYY-Number (Example: TRF-2026-1)";
+    }
     if (!projectName.trim()) e.projectName = "Project name is required";
     return e;
   };
 
   const handleNext = () => {
     const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
+    if (Object.keys(e).length) {
+      setErrors(e);
+      if (e.trfNumber && e.trfNumber.includes("Invalid")) {
+        toast.error("Invalid TRF Number. Please use the format: TRF-YYYY-Number (Example: TRF-2026-1)", { duration: 5000 });
+      }
+      return;
+    }
     setErrors({});
     setStep(1);
   };
@@ -172,9 +185,18 @@ export default function CreateTRF() {
                   </Typography>
                   <TextField
                     fullWidth
-                    placeholder="e.g. TRF-2026-101"
+                    placeholder="e.g. TRF-2026-1"
                     value={trfNumber}
-                    onChange={e => { setTrfNumber(e.target.value); setErrors(p => ({ ...p, trfNumber: "" })); }}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setTrfNumber(v);
+                      const TRF_RE = /^TRF-\d{4}-\d+$/;
+                      if (v && !TRF_RE.test(v.trim())) {
+                        setErrors(p => ({ ...p, trfNumber: "Format: TRF-YYYY-Number (e.g. TRF-2026-1)" }));
+                      } else {
+                        setErrors(p => ({ ...p, trfNumber: "" }));
+                      }
+                    }}
                     error={!!errors.trfNumber}
                     helperText={errors.trfNumber}
                     onKeyDown={e => e.key === "Enter" && handleNext()}

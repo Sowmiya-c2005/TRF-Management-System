@@ -119,3 +119,104 @@ def mark_as_read(db: Session, notification_id: int) -> Notification:
     notif_repo.commit(db)
     logger.info(f"Marked notification {notification_id} as read.")
     return notification
+
+
+def get_unread_count(db: Session, user_id: int) -> int:
+    """Get count of unread notifications for a user."""
+    return notif_repo.get_unread_count(db, user_id)
+
+
+# ── Notification Triggers ─────────────────────────────────────────────────────
+
+def notify_trf_assigned(db: Session, trf_number: str, manager_id: int, engineer_ids: list[int], assigned_by: str):
+    """Notify when a TRF is assigned to manager and engineers."""
+    # Notify manager
+    if manager_id:
+        create_notification(
+            db,
+            user_id=manager_id,
+            title=f"TRF {trf_number} Assigned to You",
+            body=f"You have been assigned as the manager for TRF {trf_number} by {assigned_by}.",
+            notif_type="assignment"
+        )
+    
+    # Notify engineers
+    for engineer_id in engineer_ids:
+        create_notification(
+            db,
+            user_id=engineer_id,
+            title=f"TRF {trf_number} Assigned to You",
+            body=f"You have been assigned to work on TRF {trf_number} by {assigned_by}.",
+            notif_type="assignment"
+        )
+
+
+def notify_document_uploaded(db: Session, trf_number: str, filename: str, uploaded_by: str, manager_id: int, engineer_ids: list[int]):
+    """Notify when a document is uploaded to a TRF."""
+    recipients = [manager_id] + engineer_ids if manager_id else engineer_ids
+    
+    for user_id in recipients:
+        if user_id:
+            create_notification(
+                db,
+                user_id=user_id,
+                title=f"Document Uploaded to TRF {trf_number}",
+                body=f"{uploaded_by} uploaded '{filename}' to TRF {trf_number}.",
+                notif_type="document"
+            )
+
+
+def notify_status_changed(db: Session, trf_number: str, old_status: str, new_status: str, manager_id: int, engineer_ids: list[int]):
+    """Notify when TRF status changes."""
+    recipients = [manager_id] + engineer_ids if manager_id else engineer_ids
+    
+    for user_id in recipients:
+        if user_id:
+            create_notification(
+                db,
+                user_id=user_id,
+                title=f"TRF {trf_number} Status Updated",
+                body=f"TRF {trf_number} status changed from {old_status} to {new_status}.",
+                notif_type="status"
+            )
+
+
+def notify_comment_added(db: Session, trf_number: str, commenter: str, comment_preview: str, manager_id: int, engineer_ids: list[int]):
+    """Notify when a comment is added to a TRF."""
+    recipients = [manager_id] + engineer_ids if manager_id else engineer_ids
+    
+    for user_id in recipients:
+        if user_id:
+            create_notification(
+                db,
+                user_id=user_id,
+                title=f"New Comment on TRF {trf_number}",
+                body=f"{commenter} commented: {comment_preview[:100]}...",
+                notif_type="comment"
+            )
+
+
+def notify_approval_completed(db: Session, trf_number: str, approved_by: str, engineer_ids: list[int]):
+    """Notify when a TRF is approved."""
+    for engineer_id in engineer_ids:
+        if engineer_id:
+            create_notification(
+                db,
+                user_id=engineer_id,
+                title=f"TRF {trf_number} Approved",
+                body=f"TRF {trf_number} has been approved by {approved_by}.",
+                notif_type="approval"
+            )
+
+
+def notify_rejection(db: Session, trf_number: str, rejected_by: str, reason: str, engineer_ids: list[int]):
+    """Notify when a TRF is rejected."""
+    for engineer_id in engineer_ids:
+        if engineer_id:
+            create_notification(
+                db,
+                user_id=engineer_id,
+                title=f"TRF {trf_number} Rejected",
+                body=f"TRF {trf_number} was rejected by {rejected_by}. Reason: {reason}",
+                notif_type="rejection"
+            )
