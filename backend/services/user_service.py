@@ -83,14 +83,25 @@ def _verify(plain: str, hashed: str) -> bool:
 
 
 def register_user(db: Session, payload: UserCreate, admin_override_role: Optional[str] = None) -> User:
-    if user_repo.get_by_username(db, payload.username):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists.")
+    # 1. Enforce Email is present, non-empty, and unique
+    email_clean = payload.email.strip().lower() if payload.email else ""
+    if not email_clean:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email address is required.")
+    
+    # Check email uniqueness
+    existing_email = db.query(User).filter(User.email == email_clean).first()
+    if existing_email:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use by another account.")
 
-    # Check email uniqueness if provided
-    if payload.email:
-        existing = db.query(User).filter(User.email == payload.email.strip().lower()).first()
-        if existing:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use by another account.")
+    # 2. Enforce Name (display_name) is present and non-empty
+    display_name_clean = payload.display_name.strip() if payload.display_name else ""
+    if not display_name_clean:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Full Name is required.")
+
+    # 3. Enforce Username uniqueness (default to email if not provided)
+    username_clean = payload.username.strip() if (payload.username and payload.username.strip()) else email_clean
+    if user_repo.get_by_username(db, username_clean):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username/Email already exists.")
 
     all_users  = user_repo.get_all(db)
     is_first   = len(all_users) == 0
@@ -100,30 +111,35 @@ def register_user(db: Session, payload: UserCreate, admin_override_role: Optiona
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid role '{role}'. Must be one of {VALID_ROLES}.")
 
     new_user = User(
-        username=payload.username,
+        username=username_clean,
         password=_hash(payload.password),
         role=role,
-        email=payload.email.strip().lower() if payload.email else None,
-        display_name=payload.display_name or payload.username,
+        email=email_clean,
+        display_name=display_name_clean,
         phone=getattr(payload, "phone", None),
     )
     user_repo.create(db, new_user)
-    logger.info(f"Registered user '{payload.username}' with role '{role}'.")
+    logger.info(f"Registered user '{username_clean}' with role '{role}' and email '{email_clean}'.")
     return new_user
 
 
 def authenticate_user(db: Session, username: str, password: str) -> User:
-    user = user_repo.get_by_username(db, username)
+    # Look up user by email first, fallback to username
+    user = user_repo.get_by_email(db, username.strip().lower())
+    if not user:
+        user = user_repo.get_by_username(db, username)
+        
     if not user or not _verify(password, user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email/username or password.")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated. Contact administrator.")
     # Update last login
     from datetime import datetime, timezone
     user.last_login_at = datetime.now(timezone.utc)
     user_repo.commit(db)
-    logger.info(f"User '{username}' authenticated (role={user.role}).")
+    logger.info(f"User '{user.username}' authenticated (role={user.role}).")
     return user
+
 
 
 def update_profile(db: Session, user: User, payload) -> User:

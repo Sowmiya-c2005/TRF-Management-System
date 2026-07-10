@@ -114,3 +114,30 @@ require_manager_or_admin = RoleChecker(["Admin", "Manager"])
 require_engineer_or_admin = RoleChecker(["Admin", "Engineer"])
 require_manager_or_engineer = RoleChecker(["Admin", "Manager", "Engineer"])
 require_any_role = RoleChecker(["Admin", "Manager", "Engineer"])
+
+
+def check_trf_access(db: Session, current_user: User, trf_number: str) -> None:
+    """Raise 403 Forbidden if non-admin user is not assigned to this TRF number."""
+    if current_user.role == "Admin":
+        return
+    from backend.services.assignment_service import get_user_assigned_trfs
+    assigned = get_user_assigned_trfs(db, current_user.id, current_user.role)
+    if trf_number.strip().lower() not in [t.trf_number.strip().lower() for t in assigned]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You are not assigned to this TRF project."
+        )
+
+
+def check_trf_id_access(db: Session, current_user: User, trf_id: int) -> None:
+    """Raise 403 Forbidden if non-admin user is not assigned to this TRF ID."""
+    if current_user.role == "Admin":
+        return
+    from backend.services.assignment_service import get_user_assigned_trfs
+    assigned = get_user_assigned_trfs(db, current_user.id, current_user.role)
+    if trf_id not in [t.id for t in assigned]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: You are not assigned to this TRF project."
+        )
+

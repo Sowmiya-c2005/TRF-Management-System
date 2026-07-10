@@ -49,8 +49,12 @@ class UserResponse(BaseModel):
     message:       str
     username:      str
     role:          str
+    email:         Optional[str] = None
+    display_name:  Optional[str] = None
+    phone:         Optional[str] = None
     token:         Optional[str] = None
     refresh_token: Optional[str] = None
+
 
 
 class UserProfileResponse(BaseModel):

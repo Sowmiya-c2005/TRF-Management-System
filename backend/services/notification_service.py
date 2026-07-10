@@ -77,7 +77,7 @@ def create_notification(
             send_system_email(
                 to_email=email,
                 subject=f"TRF Alert: {title}",
-                body=(
+                body_text=(
                     f"TRF Portal Notification Alert\n"
                     f"=================================\n\n"
                     f"Event: {title}\n"

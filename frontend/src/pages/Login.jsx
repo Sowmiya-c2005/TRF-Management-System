@@ -63,7 +63,7 @@ const ViewerIcon = () => (
 ───────────────────────────────────────────────────────────────── */
 const ROLES = [
   {
-    key:"Admin",    label:"Administrator", username:"admin",    password:"Admin@123",
+    key:"Admin",    label:"Administrator", email:"sowmiya.novelx@gmail.com",    password:"Admin@123",
     cardBg:  "linear-gradient(135deg, rgba(58,22,148,0.80) 0%, rgba(38,12,90,0.68) 100%)",
     backBg:  "linear-gradient(135deg, rgba(45,16,110,0.70) 0%, rgba(28,8,72,0.58) 100%)",
     border:  "rgba(180,155,255,0.62)",
@@ -72,7 +72,7 @@ const ROLES = [
     Icon: AdminIcon,
   },
   {
-    key:"Engineer", label:"Engineer",       username:"engineer", password:"Engineer@123",
+    key:"Engineer", label:"Engineer",       email:"engineer1@trf.com", password:"engineer123",
     cardBg:  "linear-gradient(135deg, rgba(8,108,155,0.80) 0%, rgba(0,68,108,0.68) 100%)",
     backBg:  "linear-gradient(135deg, rgba(0,82,122,0.70)  0%, rgba(0,50,88,0.58)  100%)",
     border:  "rgba(56,210,245,0.65)",
@@ -81,7 +81,7 @@ const ROLES = [
     Icon: EngineerIcon,
   },
   {
-    key:"Manager",  label:"Manager",        username:"manager",  password:"Manager@123",
+    key:"Manager",  label:"Manager",        email:"manager@trf.com",  password:"manager123",
     cardBg:  "linear-gradient(135deg, rgba(120,72,8,0.78)  0%, rgba(78,42,0,0.65)  100%)",
     backBg:  "linear-gradient(135deg, rgba(95,55,4,0.68)   0%, rgba(62,32,0,0.55)  100%)",
     border:  "rgba(252,196,42,0.62)",
@@ -90,6 +90,7 @@ const ROLES = [
     Icon: ManagerIcon,
   },
 ];
+
 
 /* ─────────────────────────────────────────────────────────────────
    SPACE CANVAS — exact reference background
@@ -484,7 +485,6 @@ const CSS = `
 export default function Login() {
   const navigate = useNavigate();
   const { signIn } = useApp();
-  const [sel,     setSel]    = useState(null);
   const [usr,     setUsr]    = useState("");
   const [pw,      setPw]     = useState("");
   const [showPw,  setShowPw] = useState(false);
@@ -499,12 +499,11 @@ export default function Login() {
     y:(e.clientY/window.innerHeight-.5)*2,
   }),[]);
 
-  const pick = r => { setSel(r.key); setUsr(r.username); setPw(r.password); };
   const toast$ = (type,msg) => { setToast({type,msg}); setTimeout(()=>setToast(null),3500); };
 
   const submit = async e => {
     e.preventDefault();
-    if(!usr.trim()){toast$("error","Username is required");return;}
+    if(!usr.trim()){toast$("error","Email address is required");return;}
     if(!pw){toast$("error","Password is required");return;}
     setLoad(true);
     try {
@@ -512,11 +511,21 @@ export default function Login() {
       const d   = res?.data || {};
       const tok = d.access_token||d.token||d.access||"";
       if(!tok) throw new Error("No token received");
-      signIn({username:d.username||usr.trim(), role:d.role||"Engineer",
-              displayName:d.displayName||usr.trim(),
-              email:d.email||`${usr.trim()}@trf.com`, token:tok});
-      toast$("success",`Welcome, ${d.username||usr}!`);
-      setTimeout(()=>navigate("/dashboard"),900);
+      const role = d.role || "Engineer";
+      const displayName = d.display_name || d.displayName || d.username || usr.trim();
+      signIn({
+        username:    d.username || usr.trim(),
+        role,
+        displayName,
+        email:       d.email || usr.trim(),
+        phone:       d.phone || "",
+        token:       tok,
+        refresh_token: d.refresh_token || "",
+      });
+      toast$("success", `Welcome, ${displayName}! Role: ${role}`);
+      // Role-based redirect
+      const destination = role === "Admin" ? "/" : role === "Manager" ? "/" : "/";
+      setTimeout(() => navigate(destination), 900);
     } catch(err) {
       toast$("error",err?.response?.data?.detail||err?.message||"Login failed");
     } finally { setLoad(false); }
@@ -609,11 +618,41 @@ export default function Login() {
               </p>
             </motion.div>
 
-            {/* 3-card grid — perspective container */}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:20,maxWidth:660,perspective:"1000px"}}>
-              {ROLES.map((r,i) => (
-                <motion.div key={r.key} initial={{opacity:0,y:32}} animate={{opacity:1,y:0}} transition={{delay:.26+i*.09}}>
-                  <RoleCard role={r} idx={i} selected={sel===r.key} onSelect={pick}/>
+            {/* Enterprise Platform Features Grid */}
+            <div style={{display:"flex",flexDirection:"column",gap:16,maxWidth:560}}>
+              {[
+                { title: "Dynamic Automated Workspace", desc: "Instant, zero-friction generation of secure project folder hierarchies.", color: "#6366f1" },
+                { title: "Granular Access Control & Security", desc: "Role-based visibility mapping project files precisely to assigned teams.", color: "#06b6d4" },
+                { title: "Full Audit Trail Logging", desc: "Enterprise auditing recording all document revisions, creations, and logs.", color: "#10b981" }
+              ].map((feat, i) => (
+                <motion.div
+                  key={feat.title}
+                  initial={{opacity:0,y:20}}
+                  animate={{opacity:1,y:0}}
+                  transition={{delay:.24+i*.08}}
+                  style={{
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1.5px solid rgba(255,255,255,0.08)",
+                    borderRadius: 14,
+                    padding: "16px 20px",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 14,
+                    backdropFilter: "blur(12px)",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                  }}
+                >
+                  <div style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    background: feat.color,
+                    boxShadow: `0 0 10px ${feat.color}`,
+                    marginTop: 6,
+                    flexShrink: 0
+                  }} />
+                  <div>
+                    <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 700, color: "#f1f5f9" }}>{feat.title}</h4>
+                    <p style={{ margin: 0, fontSize: 12, color: "#64748b", lineHeight: 1.45 }}>{feat.desc}</p>
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -658,17 +697,17 @@ export default function Login() {
 
               <h2 style={{margin:"0 0 5px",fontSize:28,fontWeight:700,color:"#f8fafc"}}>Sign In</h2>
               <p style={{margin:"0 0 22px",fontSize:13,color:"#94a3b8",lineHeight:1.5}}>
-                {sel ? `Signing in as ${sel} · credentials auto-filled` : "Select a role card — enter credentials below"}
+                Please enter your email and password.
               </p>
 
               <form onSubmit={submit} autoComplete="off" style={{display:"flex",flexDirection:"column",gap:17}}>
                 <div>
                   <label style={{display:"block",fontSize:12,fontWeight:600,color:"#94a3b8",letterSpacing:.9,marginBottom:7}}>
-                    Username
+                    Email Address
                   </label>
-                  <input className="li" value={usr} onChange={e=>setUsr(e.target.value)}
+                  <input className="li" type="email" value={usr} onChange={e=>setUsr(e.target.value)}
                     onFocus={()=>setFU(true)} onBlur={()=>setFU(false)}
-                    placeholder="your.name" autoComplete="username" style={inp(fU)}/>
+                    placeholder="user@example.com" autoComplete="email" style={inp(fU)}/>
                 </div>
                 <div>
                   <label style={{display:"block",fontSize:12,fontWeight:600,color:"#94a3b8",letterSpacing:.9,marginBottom:7}}>

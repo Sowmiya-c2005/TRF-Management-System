@@ -14,7 +14,7 @@ from backend.schemas.trf_schema import (
 )
 from backend.services import trf_service
 from backend.services.sharepoint_service import SharePointService
-from backend.middleware.auth_middleware import get_current_user, RoleChecker
+from backend.middleware.auth_middleware import get_current_user, RoleChecker, check_trf_access
 from backend.models.user_model import User
 
 router   = APIRouter(prefix="/trfs", tags=["TRF Records"])
@@ -31,7 +31,8 @@ def get_all_trfs(
     current_user: User = Depends(get_current_user),
 ):
     """Return all TRF records with optional search and SharePoint status filter."""
-    trfs = trf_service.get_all_trfs(db)
+    from backend.services.assignment_service import get_user_assigned_trfs
+    trfs = get_user_assigned_trfs(db, current_user.id, current_user.role)
 
     if search:
         q = search.lower()
@@ -65,6 +66,7 @@ def get_trf(
     current_user: User = Depends(get_current_user),
 ):
     """Fetch a single TRF by number, including folders and files."""
+    check_trf_access(db, current_user, trf_number)
     return trf_service.get_trf_by_number(db, trf_number)
 
 
@@ -95,7 +97,9 @@ def update_trf(
     current_user: User = Depends(RoleChecker(["Admin", "Engineer"])),
 ):
     """Update the project name of an existing TRF."""
+    check_trf_access(db, current_user, trf_number)
     return trf_service.update_trf(db, trf_number, payload.project_name, current_user=current_user)
+
 
 
 @router.delete("/{trf_number}", response_model=MessageResponse)

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from backend.database.database import get_db
 from backend.schemas.trf_schema import MessageResponse
 from backend.services import file_service
-from backend.middleware.auth_middleware import get_current_user, RoleChecker
+from backend.middleware.auth_middleware import get_current_user, RoleChecker, check_trf_access
 from backend.models.user_model import User
 
 router = APIRouter(prefix="/files", tags=["File Management"])
@@ -19,6 +19,7 @@ def list_files(
     current_user: User = Depends(get_current_user)
 ):
     """List all files inside a TRF sub-folder. Accessible by all authenticated users."""
+    check_trf_access(db, current_user, trf_number)
     files = file_service.list_files(db, trf_number, folder_name)
     return {
         "trf_number": trf_number,
@@ -40,6 +41,7 @@ def upload_file(
     current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))
 ):
     """Upload a file into a TRF sub-folder (supports versioning). Accessible by Admin and Engineer."""
+    check_trf_access(db, current_user, trf_number)
     saved_name = file_service.save_file(db, trf_number, folder_name, file, current_user=current_user)
     return {"message": f"File '{saved_name}' uploaded successfully"}
 
@@ -53,6 +55,7 @@ def delete_file(
     current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))
 ):
     """Delete a file and all its versions from a TRF sub-folder. Accessible by Admin and Engineer."""
+    check_trf_access(db, current_user, trf_number)
     file_service.remove_file(db, trf_number, folder_name, file_name, current_user=current_user)
     return {"message": f"File '{file_name}' deleted successfully"}
 
@@ -66,6 +69,7 @@ def download_file(
     current_user: User = Depends(get_current_user)
 ):
     """Download a file from a TRF sub-folder. Accessible by all authenticated users."""
+    check_trf_access(db, current_user, trf_number)
     file_path = file_service.get_file_path(db, trf_number, folder_name, file_name)
     return FileResponse(path=file_path, filename=file_name)
 
@@ -79,6 +83,7 @@ def preview_file(
     current_user: User = Depends(get_current_user)
 ):
     """Preview a file inline (PDFs, Images). Accessible by all authenticated users."""
+    check_trf_access(db, current_user, trf_number)
     file_path, mime_type = file_service.preview_file(db, trf_number, folder_name, file_name)
     return FileResponse(path=file_path, media_type=mime_type, content_disposition_type="inline")
 
@@ -92,6 +97,7 @@ def get_file_versions(
     current_user: User = Depends(get_current_user)
 ):
     """Get all versions of a file with size and uploader metadata. Accessible by all authenticated users."""
+    check_trf_access(db, current_user, trf_number)
     return file_service.get_file_versions(db, trf_number, folder_name, file_name)
 
 
@@ -105,6 +111,7 @@ def download_file_version(
     current_user: User = Depends(get_current_user)
 ):
     """Download a specific version of a file. Accessible by all authenticated users."""
+    check_trf_access(db, current_user, trf_number)
     file_path = file_service.get_version_file_path(db, trf_number, folder_name, file_name, version_number)
     return FileResponse(path=file_path, filename=f"v{version_number}_{file_name}")
 
@@ -117,6 +124,7 @@ def sync_files(
     current_user: User = Depends(get_current_user)
 ):
     """Synchronize database records with local storage and SharePoint. Accessible by all authenticated users."""
+    check_trf_access(db, current_user, trf_number)
     synced = file_service.sync_local_and_sharepoint(db, trf_number, folder_name)
     return {"message": f"Successfully synchronized {synced} file(s)."}
 
@@ -131,5 +139,7 @@ def replace_file(
     current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))
 ):
     """Replace an existing file with a new version. Accessible by Admin and Engineer."""
+    check_trf_access(db, current_user, trf_number)
     saved_name = file_service.replace_file(db, trf_number, folder_name, file_name, file, current_user=current_user)
     return {"message": f"File '{saved_name}' replaced successfully"}
+

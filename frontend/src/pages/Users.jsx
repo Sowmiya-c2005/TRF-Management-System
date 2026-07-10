@@ -53,24 +53,41 @@ function avatarColor(name = "") {
 function InviteDialog({ open, onClose, onSuccess }) {
   const theme  = useTheme();
   const isDark = theme.palette.mode === "dark";
-  const [form,    setForm]    = useState({ username: "", password: "", email: "", role: "Engineer" });
+  const [form,    setForm]    = useState({ display_name: "", password: "", email: "", role: "Engineer" });
   const [showPw,  setShowPw]  = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const reset = () => setForm({ username: "", password: "", email: "", role: "Engineer" });
+  const reset = () => setForm({ display_name: "", password: "", email: "", role: "Engineer" });
 
   const handleSubmit = async () => {
-    if (!form.username.trim() || form.password.length < 6) {
-      toast.error("Username required and password must be ≥ 6 characters."); return;
+    if (!form.display_name.trim()) {
+      toast.error("Full Name is required."); return;
+    }
+    if (!form.email.trim() || !form.email.includes("@")) {
+      toast.error("A valid Email Address is required."); return;
+    }
+    if (form.password.length < 6) {
+      toast.error("Password must be ≥ 6 characters."); return;
     }
     setLoading(true);
     try {
-      await API.post("/users/", { ...form, role: form.role });
-      toast.success(`User "${form.username}" created!`);
+      const emailVal = form.email.trim().toLowerCase();
+      // Map email directly to username since username is unique and required in backend DB schema
+      await API.post("/users/", {
+        username: emailVal,
+        email: emailVal,
+        display_name: form.display_name.trim(),
+        password: form.password,
+        role: form.role
+      });
+      toast.success(`User "${form.display_name}" created!`);
       onSuccess(form);
       reset(); onClose();
-    } catch (e) { toast.error(e.message || "Registration failed"); }
-    finally { setLoading(false); }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || e.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -80,10 +97,10 @@ function InviteDialog({ open, onClose, onSuccess }) {
         border: `1px solid ${isDark ? "rgba(148,163,184,0.12)" : "rgba(148,163,184,0.25)"}` } }}>
       <DialogTitle sx={{ fontWeight: 700, fontSize: "1.05rem", pb: 1 }}>Invite New User</DialogTitle>
       <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: "8px !important" }}>
-        <TextField label="Username" value={form.username} autoFocus
-          onChange={e => setForm(p => ({ ...p, username: e.target.value }))}
+        <TextField label="Full Name" value={form.display_name} autoFocus
+          onChange={e => setForm(p => ({ ...p, display_name: e.target.value }))}
           InputProps={{ startAdornment: <InputAdornment position="start"><PersonRoundedIcon sx={{ fontSize: 17 }} /></InputAdornment>, sx: { borderRadius: "10px" } }} />
-        <TextField label="Email (optional)" type="email" value={form.email}
+        <TextField label="Email Address" type="email" value={form.email}
           onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
           InputProps={{ sx: { borderRadius: "10px" } }} />
         <TextField label="Password" type={showPw ? "text" : "password"} value={form.password}

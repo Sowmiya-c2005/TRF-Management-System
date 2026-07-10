@@ -66,27 +66,41 @@ def health():
 # ── Legacy compatibility shims ────────────────────────────────────────────────
 # These keep the existing frontend working while keeping DB database normalization
 # and service layer updates intact.
+from backend.middleware.auth_middleware import get_current_user, check_trf_access, RoleChecker
+from backend.models.user_model import User
+from fastapi import HTTPException
 
 @app.get("/all-trfs")
-def legacy_all_trfs(db: Session = Depends(get_db)):
-    return trf_service.get_all_trfs(db)
+def legacy_all_trfs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from backend.services.assignment_service import get_user_assigned_trfs
+    return get_user_assigned_trfs(db, current_user.id, current_user.role)
 
 
 @app.get("/dashboard-stats")
-def legacy_dashboard_stats(db: Session = Depends(get_db)):
-    stats = trf_service.get_dashboard_stats(db)
-    # Keep backward compat — front-end only reads total_trfs
+def legacy_dashboard_stats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Return role-aware dashboard stats
+    from backend.services import dashboard_service
+    if current_user.role == "Admin":
+        stats = dashboard_service.get_admin_dashboard_stats(db)
+    elif current_user.role == "Manager":
+        stats = dashboard_service.get_manager_dashboard_stats(db, current_user.id)
+    elif current_user.role == "Engineer":
+        stats = dashboard_service.get_engineer_dashboard_stats(db, current_user.id)
+    else:
+        stats = {}
+    stats["unread_notifications"] = dashboard_service.get_unread_notification_count(db, current_user.id)
     return stats
 
 
 @app.get("/search-trf/{trf_number}")
-def legacy_search_trf(trf_number: str, db: Session = Depends(get_db)):
+def legacy_search_trf(trf_number: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    check_trf_access(db, current_user, trf_number)
     return trf_service.get_trf_by_number(db, trf_number)
 
 
 @app.post("/create-trf")
-def legacy_create_trf(payload: TRFCreate, db: Session = Depends(get_db)):
-    trf = trf_service.create_trf(db, payload)
+def legacy_create_trf(payload: TRFCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))):
+    trf = trf_service.create_trf(db, payload, current_user=current_user)
     return {
         "message":            "TRF Created Successfully",
         "trf_number":         trf.trf_number,
@@ -96,37 +110,42 @@ def legacy_create_trf(payload: TRFCreate, db: Session = Depends(get_db)):
 
 
 @app.put("/update-trf/{trf_number}")
-def legacy_update_trf(trf_number: str, project_name: str, db: Session = Depends(get_db)):
-    trf_service.update_trf(db, trf_number, project_name)
+def legacy_update_trf(trf_number: str, project_name: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))):
+    check_trf_access(db, current_user, trf_number)
+    trf_service.update_trf(db, trf_number, project_name, current_user=current_user)
     return {"message": "TRF Updated Successfully"}
 
 
 @app.delete("/delete-trf/{trf_number}")
-def legacy_delete_trf(trf_number: str, db: Session = Depends(get_db)):
-    trf_service.delete_trf(db, trf_number)
+def legacy_delete_trf(trf_number: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin"]))):
+    trf_service.delete_trf(db, trf_number, current_user=current_user)
     return {"message": "TRF Deleted Successfully"}
 
 
 @app.post("/upload-file/{trf_number}/{folder_name}")
-def legacy_upload_file(trf_number: str, folder_name: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    saved = file_service.save_file(db, trf_number, folder_name, file)
+def legacy_upload_file(trf_number: str, folder_name: str, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))):
+    check_trf_access(db, current_user, trf_number)
+    saved = file_service.save_file(db, trf_number, folder_name, file, current_user=current_user)
     return {"message": "File Uploaded Successfully", "file_name": saved}
 
 
 @app.get("/files/{trf_number}/{folder_name}")
-def legacy_get_files(trf_number: str, folder_name: str, db: Session = Depends(get_db)):
+def legacy_get_files(trf_number: str, folder_name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    check_trf_access(db, current_user, trf_number)
     files = file_service.list_files(db, trf_number, folder_name)
     return {"trf_number": trf_number, "folder_name": folder_name, "files": files}
 
 
 @app.delete("/delete-file/{trf_number}/{folder_name}/{file_name}")
-def legacy_delete_file(trf_number: str, folder_name: str, file_name: str, db: Session = Depends(get_db)):
-    file_service.remove_file(db, trf_number, folder_name, file_name)
+def legacy_delete_file(trf_number: str, folder_name: str, file_name: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))):
+    check_trf_access(db, current_user, trf_number)
+    file_service.remove_file(db, trf_number, folder_name, file_name, current_user=current_user)
     return {"message": "File Deleted Successfully"}
 
 
 @app.get("/download-file/{trf_number}/{folder_name}/{file_name}")
-def legacy_download_file(trf_number: str, folder_name: str, file_name: str, db: Session = Depends(get_db)):
+def legacy_download_file(trf_number: str, folder_name: str, file_name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    check_trf_access(db, current_user, trf_number)
     path = file_service.get_file_path(db, trf_number, folder_name, file_name)
     return FileResponse(path=path, filename=file_name)
 
@@ -145,3 +164,4 @@ def legacy_register(username: str, password: str, db: Session = Depends(get_db))
     from backend.schemas.user_schema import UserCreate
     user_service.register_user(db, UserCreate(username=username, password=password))
     return {"message": "User Created Successfully"}
+

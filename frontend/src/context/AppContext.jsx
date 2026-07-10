@@ -190,13 +190,17 @@ export function AppProvider({ children }) {
     const enriched = {
       username:    userData.username,
       role:        userData.role        || "Engineer",
-      email:       userData.email       || `${userData.username}@trf.com`,
+      email:       userData.email       || userData.username || "",
       displayName: userData.displayName || userData.username,
+      phone:       userData.phone       || "",
       avatar:      userData.avatar      || null,
       joinedAt:    userData.joinedAt    || new Date().toISOString(),
     };
     if (userData.token) {
       localStorage.setItem("token", userData.token);
+    }
+    if (userData.refresh_token) {
+      localStorage.setItem("refresh_token", userData.refresh_token);
     }
     localStorage.setItem("authUser", JSON.stringify(enriched));
     setUser(enriched);

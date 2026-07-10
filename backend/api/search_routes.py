@@ -21,7 +21,7 @@ def search_trf_records(
     current_user: User = Depends(get_current_user),
 ):
     """Search TRF records with advanced filters."""
-    return search_trfs(db, search_request)
+    return search_trfs(db, search_request, current_user)
 
 
 @router.get("/filters/statuses")

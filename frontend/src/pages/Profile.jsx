@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@mui/material/styles";
 import { useSearchParams } from "react-router-dom";
@@ -74,10 +74,38 @@ export default function Profile() {
   const [dispName,setDispName]= useState(user?.displayName || "");
   const [email,   setEmail]   = useState(user?.email || "");
   const [phone,   setPhone]   = useState(user?.phone || "");
+
+  useEffect(() => {
+    let active = true;
+    const fetchLatestProfile = async () => {
+      try {
+        const res = await API.get("/users/me");
+        if (active && res?.data) {
+          const d = res.data;
+          setDispName(d.display_name || d.username || "");
+          setEmail(d.email || "");
+          setPhone(d.phone || "");
+          updateUser({
+            displayName: d.display_name || d.username,
+            email: d.email,
+            phone: d.phone,
+            username: d.username,
+            role: d.role,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch fresh profile data:", err);
+      }
+    };
+    fetchLatestProfile();
+    return () => { active = false; };
+  }, [updateUser]);
+
   const [saving,  setSaving]  = useState(false);
   const [saved,   setSaved]   = useState(false);
   const [curPwd,  setCurPwd]  = useState("");
   const [newPwd,  setNewPwd]  = useState("");
+
   const [conPwd,  setConPwd]  = useState("");
   const [showCur, setShowCur] = useState(false);
   const [showNew, setShowNew] = useState(false);

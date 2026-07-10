@@ -42,9 +42,13 @@ def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
         "message": "Login successful",
         "username": user.username,
         "role": user.role,
+        "email": user.email,
+        "display_name": user.display_name,
+        "phone": user.phone,
         "token": token,
         "refresh_token": rtok,
     }
+
 
 
 @router.post("/refresh", response_model=TokenRefreshResponse)

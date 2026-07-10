@@ -52,7 +52,7 @@ def get_recent_activities(
     current_user: User = Depends(get_current_user),
 ):
     """Get recent activities."""
-    activities = dashboard_service.get_recent_activities(db, limit)
+    activities = dashboard_service.get_recent_activities(db, limit, current_user)
     return {"activities": activities, "count": len(activities)}
 
 
@@ -65,7 +65,7 @@ def get_admin_dashboard(
     stats = dashboard_service.get_admin_dashboard_stats(db)
     stats["unread_notifications"] = dashboard_service.get_unread_notification_count(db, current_user.id)
     distribution = dashboard_service.get_status_distribution(db)
-    activities = dashboard_service.get_recent_activities(db, 10)
+    activities = dashboard_service.get_recent_activities(db, 10, current_user)
     
     return {
         "stats": stats,
@@ -87,7 +87,7 @@ def get_manager_dashboard(
     stats = dashboard_service.get_manager_dashboard_stats(db, current_user.id)
     stats["unread_notifications"] = dashboard_service.get_unread_notification_count(db, current_user.id)
     distribution = dashboard_service.get_status_distribution(db)
-    activities = dashboard_service.get_recent_activities(db, 10)
+    activities = dashboard_service.get_recent_activities(db, 10, current_user)
     
     return {
         "stats": stats,
@@ -109,10 +109,11 @@ def get_engineer_dashboard(
     stats = dashboard_service.get_engineer_dashboard_stats(db, current_user.id)
     stats["unread_notifications"] = dashboard_service.get_unread_notification_count(db, current_user.id)
     distribution = dashboard_service.get_status_distribution(db)
-    activities = dashboard_service.get_recent_activities(db, 10)
+    activities = dashboard_service.get_recent_activities(db, 10, current_user)
     
     return {
         "stats": stats,
         "status_distribution": distribution,
         "recent_activities": activities
     }
+

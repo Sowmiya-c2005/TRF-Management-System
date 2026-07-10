@@ -386,6 +386,8 @@ export default function Dashboard() {
   const [stats,   setStats]   = useState(null);
   const [monthly, setMonthly] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dbProjects, setDbProjects] = useState([]);
+  const [dbActivities, setDbActivities] = useState([]);
 
   const displayName = user?.displayName || user?.username || "there";
 
@@ -410,7 +412,6 @@ export default function Dashboard() {
   useEffect(()=>{
     setLoading(true);
 
-    // Use new dashboard API for role-specific statistics
     const token = localStorage.getItem('token');
     axios.get('http://localhost:8000/dashboard/stats', {
       headers: { Authorization: `Bearer ${token}` }
@@ -418,24 +419,65 @@ export default function Dashboard() {
       .then(res => {
         const apiStats = res.data;
         setStats({
-          total_trfs: apiStats.total_trfs || 0,
-          total_documents: apiStats.active_projects || 0,  // Using as proxy
-          active_projects: apiStats.active_projects || 0,
-          storage_used: "0 MB",  // Not in API yet
-          pending_reviews: apiStats.pending_reviews || 0,
-          unread_notifications: apiStats.unread_notifications || 0,
+          total_trfs:            apiStats.total_trfs            || 0,
+          total_documents:       apiStats.total_documents       || apiStats.total_files || 0,
+          active_projects:       apiStats.active_projects       || apiStats.unique_projects || 0,
+          storage_used:          apiStats.storage_used          || "0 MB",
+          pending_reviews:       apiStats.pending_reviews       || 0,
+          unread_notifications:  apiStats.unread_notifications  || 0,
         });
         
-        // Also get monthly data from TRFs
         return getAllTRFs();
       })
       .then(res => {
         const list = Array.isArray(res.data) ? res.data : [];
         setMonthly(buildMonthly(list));
+        
+        // Group by project_name and get progress based on status
+        const projMap = {};
+        list.forEach(t => {
+          const name = t.project_name || "Unnamed Project";
+          if (!projMap[name]) {
+            projMap[name] = { name, count: 0, completed: 0, status: t.status };
+          }
+          projMap[name].count++;
+          if (t.status === "Approved" || t.status === "Completed") {
+            projMap[name].completed++;
+          }
+        });
+        const derived = Object.values(projMap).map(p => {
+          const pct = Math.round((p.completed / p.count) * 100);
+          return {
+            name: p.name,
+            progress: pct || 15,
+            status: p.status,
+            color: p.status === "Completed" || p.status === "Approved" ? "#10b981" : "#06b6d4"
+          };
+        });
+        setDbProjects(derived.slice(0, 5));
+
+        // Fetch recent activities from backend
+        return axios.get('http://localhost:8000/dashboard/recent-activities', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      })
+      .then(res => {
+        const list = Array.isArray(res.data?.activities) ? res.data.activities : [];
+        const mapped = list.map(log => ({
+          id: log.id,
+          action: log.details || log.action || "System action",
+          user: log.username || "System",
+          time: new Date(log.created_at || Date.now()),
+          color: (log.action || "").includes("DELETE")
+                    ? "#ef4444"
+                    : (log.action || "").includes("CREATE")
+                    ? "#6366f1"
+                    : "#f59e0b",
+        }));
+        setDbActivities(mapped);
       })
       .catch(err => {
         console.error('Dashboard API error:', err);
-        // Fallback to legacy method
         getAllTRFs()
           .then(async res=>{
             const list = Array.isArray(res.data) ? res.data : [];
@@ -550,27 +592,48 @@ export default function Dashboard() {
               <Box sx={{position:"absolute",top:"35%",left:"40%",width:220,height:130,borderRadius:"50%",
                 background:"radial-gradient(circle,rgba(168,85,247,0.09) 0%,transparent 70%)",pointerEvents:"none"}}/>
 
-              <Typography sx={{
-                fontSize:"clamp(1.5rem,3vw,2.1rem)",fontWeight:900,
-                color:"#f1f5f9",mb:.9,lineHeight:1.15,
-                fontFamily:"'Outfit','Inter',sans-serif",
-                position:"relative",
-              }}>
-                {greeting.text}, {displayName}! {greeting.emoji}
-              </Typography>
-              <Typography sx={{
-                color:"#64748b",fontSize:"0.88rem",lineHeight:1.6,
-                mb:3,maxWidth:480,position:"relative",
-              }}>
-                Logged in as{" "}
-                <Box component="span" sx={{
-                  color:"#a5b4fc",fontWeight:700,
-                  background:"rgba(99,102,241,0.14)",
-                  border:"1px solid rgba(99,102,241,0.28)",
-                  borderRadius:"6px",px:1,py:.15,
-                }}>{user?.role||"Admin"}</Box>
-                . Manage TRFs, browse RIFs, and track real-time activity.
-              </Typography>
+              {/* Greeting + Role row */}
+              <Box sx={{ position:"relative", mb: 1.5 }}>
+                <Typography sx={{
+                  fontSize:"clamp(1.5rem,3vw,2.1rem)", fontWeight:900,
+                  color:"#f1f5f9", lineHeight:1.15,
+                  fontFamily:"'Outfit','Inter',sans-serif",
+                  mb: 1,
+                }}>
+                  {greeting.text}, {displayName}! {greeting.emoji}
+                </Typography>
+
+                {/* Role badge — prominent single pill */}
+                <Box sx={{
+                  display:"inline-flex", alignItems:"center", gap:.8,
+                  background:"linear-gradient(135deg,rgba(99,102,241,0.20),rgba(168,85,247,0.16))",
+                  border:"1px solid rgba(99,102,241,0.45)",
+                  borderRadius:"24px", px:2, py:.6,
+                  backdropFilter:"blur(12px)",
+                  boxShadow:"0 0 20px rgba(99,102,241,0.18)",
+                  mb:2.5,
+                }}>
+                  <Box sx={{
+                    width:8, height:8, borderRadius:"50%",
+                    background:"linear-gradient(135deg,#818cf8,#a78bfa)",
+                    boxShadow:"0 0 10px rgba(129,140,248,0.95)",
+                    flexShrink:0,
+                  }}/>
+                  <Typography sx={{
+                    color:"#c4b5fd", fontWeight:800, fontSize:"0.78rem",
+                    letterSpacing:1.2, textTransform:"uppercase",
+                    fontFamily:"'Outfit','Inter',sans-serif",
+                  }}>Role: {user?.role || "Engineer"}</Typography>
+                </Box>
+
+                <Typography sx={{
+                  color:"#64748b", fontSize:"0.88rem", lineHeight:1.6,
+                  maxWidth:460, position:"relative",
+                }}>
+                  Manage TRFs, upload documents, and track real-time project activity.
+                </Typography>
+              </Box>
+
 
               <Box sx={{display:"flex",gap:1.5,flexWrap:"wrap",position:"relative"}}>
                 <motion.button whileHover={{scale:1.04,y:-2}} whileTap={{scale:.97}}
@@ -749,7 +812,7 @@ export default function Dashboard() {
                   <Typography sx={{color:sectionLabel,fontSize:"0.78rem",textAlign:"center",py:5}}>
                     No recent activity
                   </Typography>
-                ):activities.slice(0,7).map((a,i)=>(
+                ): (dbActivities.length > 0 ? dbActivities : activities).slice(0,7).map((a,i)=>(
                   <Box key={a.id||i} sx={{display:"flex",gap:1.5,alignItems:"flex-start"}}>
                     <Box sx={{
                       width:26,height:26,borderRadius:"50%",flexShrink:0,mt:.1,
@@ -785,7 +848,7 @@ export default function Dashboard() {
             Current status of active pipeline installations
           </Typography>
           <Grid container spacing={2.5}>
-            {projects.map(p=>(
+            {(dbProjects.length > 0 ? dbProjects : projects).map(p=>(
               <Grid item xs={12} sm={6} key={p.name}>
                 <Box sx={{
                   p:2,borderRadius:"14px",

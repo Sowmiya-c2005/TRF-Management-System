@@ -59,10 +59,14 @@ def get_admin_dashboard_stats(db: Session) -> dict:
         Activity.created_at >= week_ago
     ).scalar() or 0
     
+    # Unique project names
+    unique_projects = db.query(func.count(func.distinct(TRFRecord.project_name))).scalar() or 0
+
     return {
         "total_trfs": total_trfs,
         "pending_reviews": pending_reviews,
         "active_projects": active_projects,
+        "unique_projects": unique_projects,
         "completed_projects": completed_projects,
         "active_engineers": active_engineers,
         "active_managers": active_managers,
@@ -117,10 +121,17 @@ def get_manager_dashboard_stats(db: Session, manager_id: int) -> dict:
         Activity.created_at >= week_ago
     ).scalar() or 0 if assigned_trf_ids else 0
     
+    # Unique project names for this manager
+    unique_projects = db.query(func.count(func.distinct(TRFRecord.project_name))).filter(
+        TRFRecord.assigned_manager_id == manager_id
+    ).scalar() or 0
+
     return {
         "assigned_projects": assigned_projects,
+        "total_trfs": assigned_projects,
         "pending_reviews": pending_reviews,
         "active_projects": active_projects,
+        "unique_projects": unique_projects,
         "completed_projects": completed_projects,
         "team_progress": round(team_progress, 2),
         "recent_activities": recent_activities
@@ -169,10 +180,17 @@ def get_engineer_dashboard_stats(db: Session, engineer_id: int) -> dict:
         Activity.created_at >= week_ago
     ).scalar() or 0 if trf_ids else 0
     
+    # Unique project names assigned to this engineer
+    unique_projects = db.query(func.count(func.distinct(TRFRecord.project_name))).filter(
+        TRFRecord.id.in_(trf_ids)
+    ).scalar() or 0 if trf_ids else 0
+
     return {
         "my_assigned_trfs": my_assigned_trfs,
+        "total_trfs": my_assigned_trfs,
         "my_pending_tasks": pending_tasks,
         "active_projects": active_projects,
+        "unique_projects": unique_projects,
         "completed_projects": completed_projects,
         "upload_history": upload_history,
         "recent_activities": recent_activities
@@ -198,6 +216,30 @@ def get_unread_notification_count(db: Session, user_id: int) -> int:
     return notif_repo.get_unread_count(db, user_id)
 
 
-def get_recent_activities(db: Session, limit: int = 10) -> List[Activity]:
-    """Get recent activities across all TRFs."""
-    return db.query(Activity).order_by(Activity.created_at.desc()).limit(limit).all()
+def get_recent_activities(db: Session, limit: int = 10, current_user: User = None) -> List[Activity]:
+    """Get recent activities based on role."""
+    if not current_user or current_user.role == "Admin":
+        return db.query(Activity).order_by(Activity.created_at.desc()).limit(limit).all()
+    
+    from backend.models.trf_assignment_model import TRFEngineerAssignment
+    if current_user.role == "Manager":
+        return (
+            db.query(Activity)
+            .join(TRFRecord, Activity.trf_id == TRFRecord.id)
+            .filter(TRFRecord.assigned_manager_id == current_user.id)
+            .order_by(Activity.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+    elif current_user.role == "Engineer":
+        return (
+            db.query(Activity)
+            .join(TRFRecord, Activity.trf_id == TRFRecord.id)
+            .join(TRFEngineerAssignment, TRFEngineerAssignment.trf_id == TRFRecord.id)
+            .filter(TRFEngineerAssignment.engineer_id == current_user.id)
+            .order_by(Activity.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+    return []
+

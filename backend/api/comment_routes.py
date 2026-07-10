@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from backend.database.database import get_db
 from backend.schemas.comment_schema import CommentCreate, CommentUpdate, CommentResponse
 from backend.services import comment_service, audit_service, activity_service
-from backend.middleware.auth_middleware import get_current_user
+from backend.services.email_service import email_comment_added
+from backend.middleware.auth_middleware import get_current_user, check_trf_id_access
 from backend.models.user_model import User
 
 router = APIRouter(prefix="/comments", tags=["Comments"])
@@ -21,6 +22,7 @@ def create_comment(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new comment or reply on a TRF."""
+    check_trf_id_access(db, current_user, payload.trf_id)
     comment = comment_service.create_comment(
         db,
         payload.trf_id,
@@ -28,23 +30,34 @@ def create_comment(
         payload.content,
         payload.parent_id
     )
-    
+
+    # Resolve TRF number for activity/email logging
+    from backend.repositories.trf_repository import TRFRepository
+    trf = TRFRepository().get(db, payload.trf_id)
+    trf_number = trf.trf_number if trf else f"ID:{payload.trf_id}"
+
     # Log activity
     activity_service.log_activity(
         db,
         trf_id=payload.trf_id,
         user_id=current_user.id,
         action_type="COMMENT_ADDED",
-        description=f"{current_user.username} added a comment on TRF"
+        description=f"{current_user.username} added a comment on TRF {trf_number}"
     )
-    
+
     audit_service.log_action(
         db,
         user_id=current_user.id,
         action="CREATE_COMMENT",
-        details=f"User '{current_user.username}' added comment on TRF ID {payload.trf_id}"
+        details=f"User '{current_user.username}' added comment on TRF '{trf_number}' (ID {payload.trf_id})"
     )
-    
+
+    # Email admins when a comment is added
+    try:
+        email_comment_added(db, trf_number, payload.content, current_user.username, current_user.role)
+    except Exception as email_err:
+        import logging; logging.getLogger("comment_routes").warning(f"Comment email error: {email_err}")
+
     return comment
 
 
@@ -55,6 +68,7 @@ def get_trf_comments(
     current_user: User = Depends(get_current_user),
 ):
     """Get all top-level comments for a TRF."""
+    check_trf_id_access(db, current_user, trf_id)
     comments = comment_service.get_trf_comments(db, trf_id)
     return {"trf_id": trf_id, "comments": comments, "count": len(comments)}
 
@@ -66,6 +80,11 @@ def get_comment_replies(
     current_user: User = Depends(get_current_user),
 ):
     """Get all replies to a specific comment."""
+    # Since comment_id doesn't directly give trf_id without fetching it, let's verify via comment's trf
+    from backend.repositories.comment_repository import CommentRepository
+    comment = CommentRepository().get(db, comment_id)
+    if comment:
+        check_trf_id_access(db, current_user, comment.trf_id)
     replies = comment_service.get_comment_replies(db, comment_id)
     return {"comment_id": comment_id, "replies": replies, "count": len(replies)}
 
@@ -77,8 +96,10 @@ def get_full_comment_thread(
     current_user: User = Depends(get_current_user),
 ):
     """Get the full comment thread for a TRF with nested replies."""
+    check_trf_id_access(db, current_user, trf_id)
     comments = comment_service.get_full_comment_thread(db, trf_id)
     return {"trf_id": trf_id, "comments": comments, "count": len(comments)}
+
 
 
 @router.put("/{comment_id}", response_model=CommentResponse)
