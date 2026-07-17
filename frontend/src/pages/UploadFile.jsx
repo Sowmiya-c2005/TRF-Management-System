@@ -316,7 +316,7 @@ export default function UploadFile() {
                 placeholder="Search or enter TRF number (e.g. TRF-2026-101)"
                 size="small"
                 InputProps={{
-                  ...params.InputProps,
+                  ...(params.InputProps || {}),
                   startAdornment: (
                     <Box sx={{ mr:.5, display:"flex", alignItems:"center" }}>
                       <SearchRoundedIcon sx={{ fontSize:18, color:sub }}/>
@@ -324,7 +324,7 @@ export default function UploadFile() {
                   ),
                   endAdornment: trfLoading
                     ? <CircularProgress size={14} sx={{ color:"#6366f1" }}/>
-                    : params.InputProps.endAdornment,
+                    : (params.InputProps?.endAdornment || null),
                 }}
                 sx={{
                   "& .MuiOutlinedInput-root": {

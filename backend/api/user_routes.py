@@ -10,11 +10,12 @@ from backend.schemas.user_schema import (
     TokenRefreshRequest, TokenRefreshResponse,
     UserProfileResponse, UserUpdate,
     ChangePasswordRequest, RoleUpdateRequest,
-    AdminResetPasswordRequest, UserStatusRequest,
+    AdminResetPasswordRequest, UserStatusRequest, RoleVerifyRequest,
 )
 from backend.services import user_service, audit_service, notification_service
 from backend.middleware.auth_middleware import get_current_user, RoleChecker
 from backend.models.user_model import User
+from fastapi import HTTPException
 
 router = APIRouter(prefix="/users", tags=["Users & Auth"])
 
@@ -48,6 +49,17 @@ def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
         "token": token,
         "refresh_token": rtok,
     }
+
+
+@router.post("/verify-role")
+def verify_role(payload: RoleVerifyRequest, current_user: User = Depends(get_current_user)):
+    if current_user.role != payload.role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Selected role '{payload.role}' does not match your assigned role."
+        )
+    return {"message": "Role verified successfully", "role": current_user.role}
+
 
 
 
@@ -85,11 +97,44 @@ def update_me(
     Update the current user's own profile (name, email, phone, avatar).
     Email uniqueness is validated — returns 409 if duplicate.
     If email changes, refresh token is revoked (frontend must re-login).
+    If the user is an Admin and their email changes, a test verification email is
+    immediately dispatched to the new address to confirm the SMTP pipeline is live.
     """
-    email_before = current_user.email
+    import logging
+    _log = logging.getLogger("user_routes")
+
+    email_before = (current_user.email or "").strip().lower()
     updated = user_service.update_profile(db, current_user, payload)
+
     audit_service.log_action(db, user_id=current_user.id, action="UPDATE_PROFILE",
                              details=f"User '{current_user.username}' updated profile.")
+
+    # ── Admin email changed → fire immediate test notification ────────────────
+    email_after = (updated.email or "").strip().lower()
+    if current_user.role == "Admin" and email_after and email_after != email_before:
+        _log.info(
+            f"[SMTP-DEBUG] Admin '{current_user.username}' changed email from "
+            f"'{email_before}' → '{email_after}'. Dispatching immediate test notification..."
+        )
+        try:
+            from backend.services.email_service import send_system_email
+            test_subject = "[TRF Portal] ✅ Email Updated — Notification Test"
+            test_body = (
+                f"Hi {updated.display_name or updated.username},\n\n"
+                f"Your TRF Portal admin email has been successfully updated.\n\n"
+                f"Previous Email : {email_before or '(not set)'}\n"
+                f"New Email      : {email_after}\n\n"
+                f"This is an automated test email confirming that all future TRF Portal\n"
+                f"notifications (TRF creation, assignments, status changes, file uploads,\n"
+                f"comments, approvals) will now be sent to this email address.\n\n"
+                f"No action required — you're all set!\n\n"
+                f"— TRF Portal System"
+            )
+            send_system_email(email_after, test_subject, test_body, db)
+            _log.info(f"[SMTP-DEBUG] Test notification dispatched to new admin email: {email_after!r}")
+        except Exception as email_err:
+            _log.warning(f"[SMTP-DEBUG] Failed to send admin email update test notification: {email_err}")
+
     return updated
 
 

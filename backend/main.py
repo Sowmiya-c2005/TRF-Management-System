@@ -19,7 +19,7 @@ logger = get_logger("main")
 from backend.api import trf_routes, file_routes, user_routes, audit_routes, notification_routes, qr_routes, storage_routes, assignment_routes, activity_routes, comment_routes, dashboard_routes, search_routes
 from backend.database.database import get_db
 from backend.middleware.exception_handlers import register_exception_handlers
-from backend.schemas.trf_schema import TRFCreate
+from backend.schemas.trf_schema import TRFCreate, TRFResponse
 from backend.services import trf_service, file_service, user_service
 
 app = FastAPI(
@@ -70,7 +70,7 @@ from backend.middleware.auth_middleware import get_current_user, check_trf_acces
 from backend.models.user_model import User
 from fastapi import HTTPException
 
-@app.get("/all-trfs")
+@app.get("/all-trfs", response_model=list[TRFResponse])
 def legacy_all_trfs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from backend.services.assignment_service import get_user_assigned_trfs
     return get_user_assigned_trfs(db, current_user.id, current_user.role)
@@ -92,7 +92,7 @@ def legacy_dashboard_stats(db: Session = Depends(get_db), current_user: User = D
     return stats
 
 
-@app.get("/search-trf/{trf_number}")
+@app.get("/search-trf/{trf_number}", response_model=TRFResponse)
 def legacy_search_trf(trf_number: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     check_trf_access(db, current_user, trf_number)
     return trf_service.get_trf_by_number(db, trf_number)
@@ -123,7 +123,7 @@ def legacy_delete_trf(trf_number: str, db: Session = Depends(get_db), current_us
 
 
 @app.post("/upload-file/{trf_number}/{folder_name}")
-def legacy_upload_file(trf_number: str, folder_name: str, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))):
+def legacy_upload_file(trf_number: str, folder_name: str, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer", "Manager"]))):
     check_trf_access(db, current_user, trf_number)
     saved = file_service.save_file(db, trf_number, folder_name, file, current_user=current_user)
     return {"message": "File Uploaded Successfully", "file_name": saved}
@@ -137,7 +137,7 @@ def legacy_get_files(trf_number: str, folder_name: str, db: Session = Depends(ge
 
 
 @app.delete("/delete-file/{trf_number}/{folder_name}/{file_name}")
-def legacy_delete_file(trf_number: str, folder_name: str, file_name: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))):
+def legacy_delete_file(trf_number: str, folder_name: str, file_name: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer", "Manager"]))):
     check_trf_access(db, current_user, trf_number)
     file_service.remove_file(db, trf_number, folder_name, file_name, current_user=current_user)
     return {"message": "File Deleted Successfully"}

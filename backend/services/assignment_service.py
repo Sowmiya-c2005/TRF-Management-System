@@ -22,24 +22,36 @@ user_repo = UserRepository()
 assignment_repo = AssignmentRepository()
 
 
-def assign_trf(db: Session, trf_id: int, manager_id: int = None, engineer_ids: List[int] = None, assigned_by_id: int = None) -> TRFRecord:
-    """Assign a TRF to a manager and engineers."""
+def assign_trf(db: Session, trf_id: int, manager_id: int = None, engineer_ids: List[int] = None, assigned_by_id: int = None, priority: str = None, due_date = None, remarks: str = None) -> TRFRecord:
+    """Assign a TRF to a manager and engineers, and set priority, due date, and remarks."""
     trf = trf_repo.get(db, trf_id)
     if not trf:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="TRF not found.")
     
-    # Assign manager
-    if manager_id:
-        manager = user_repo.get(db, manager_id)
-        if not manager:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manager not found.")
-        if manager.role != "Manager" and manager.role != "Admin":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User must be a Manager or Admin.")
-        trf.assigned_manager_id = manager_id
-        logger.info(f"Assigned manager {manager.username} to TRF {trf.trf_number}")
+    # Update project parameters if supplied
+    if priority is not None:
+        trf.priority = priority
+    if due_date is not None:
+        trf.due_date = due_date
+    if remarks is not None:
+        trf.remarks = remarks
     
-    # Assign engineers
-    if engineer_ids:
+    # Assign manager (if manager_id is explicitly passed)
+    if manager_id is not None:
+        if manager_id <= 0:
+            trf.assigned_manager_id = None
+            logger.info(f"Unassigned manager from TRF {trf.trf_number}")
+        else:
+            manager = user_repo.get(db, manager_id)
+            if not manager:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Manager not found.")
+            if manager.role != "Manager" and manager.role != "Admin":
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User must be a Manager or Admin.")
+            trf.assigned_manager_id = manager_id
+            logger.info(f"Assigned manager {manager.username} to TRF {trf.trf_number}")
+    
+    # Assign engineers (if engineer_ids list is explicitly passed)
+    if engineer_ids is not None:
         # Remove existing engineer assignments
         assignment_repo.delete_by_trf_id(db, trf_id)
         
@@ -60,12 +72,13 @@ def assign_trf(db: Session, trf_id: int, manager_id: int = None, engineer_ids: L
             logger.info(f"Assigned engineer {engineer.username} to TRF {trf.trf_number}")
     
     # Update status if assignments exist
-    if manager_id or (engineer_ids and len(engineer_ids) > 0):
+    if trf.assigned_manager_id or (engineer_ids and len(engineer_ids) > 0):
         if trf.status == "Draft":
             trf.status = "Assigned"
             trf.status_updated_at = datetime.now(timezone.utc)
             logger.info(f"TRF {trf.trf_number} status updated to Assigned")
     
+    trf.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(trf)
     return trf

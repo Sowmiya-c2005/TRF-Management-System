@@ -26,7 +26,8 @@ const PERMISSIONS = {
     "view_reports", "view_all",
   ],
   Manager: [
-    "download_file", "view_analytics", "view_reports", "view_all",
+    "upload_file", "delete_file", "download_file",
+    "view_analytics", "view_reports", "view_all",
   ],
   Viewer: [
     "download_file", "view_all",

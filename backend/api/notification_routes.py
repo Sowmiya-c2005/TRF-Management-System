@@ -1,4 +1,6 @@
 import asyncio
+import re
+from typing import Optional
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 
@@ -8,11 +10,44 @@ from backend.schemas.trf_schema import MessageResponse
 from backend.services import notification_service
 from backend.middleware.auth_middleware import get_current_user
 from backend.models.user_model import User
+from backend.models.trf_model import TRFRecord
+from backend.models.activity_model import Activity
 from backend.utils.websocket_manager import manager
 from backend.utils.logging_config import get_logger
 
 logger = get_logger("notification_routes")
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+
+def _enrich_notification(db: Session, notif) -> dict:
+    trf_match = re.search(r'(TRF-\d{4}-\d+|TRF-[A-Z0-9-]+)', notif.title + " " + notif.body)
+    trf_number = trf_match.group(1) if trf_match else None
+    
+    actor_username = None
+    actor_role = None
+    
+    if trf_number:
+        trf = db.query(TRFRecord).filter(TRFRecord.trf_number == trf_number).first()
+        if trf:
+            act = db.query(Activity).filter(
+                Activity.trf_id == trf.id
+            ).order_by(Activity.created_at.desc()).first()
+            if act and act.user:
+                actor_username = act.user.display_name or act.user.username
+                actor_role = act.user.role
+            
+    return {
+        "id": notif.id,
+        "user_id": notif.user_id,
+        "title": notif.title,
+        "body": notif.body,
+        "read": notif.read,
+        "type": notif.type,
+        "created_at": notif.created_at,
+        "trf_number": trf_number,
+        "actor_username": actor_username,
+        "actor_role": actor_role
+    }
 
 
 @router.websocket("/ws")
@@ -34,11 +69,32 @@ async def notifications_websocket(websocket: WebSocket):
 @router.get("/", response_model=list[NotificationResponse])
 def get_my_notifications(
     include_read: bool = True,
+    page: int = 1,
+    limit: int = 10,
+    type: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Retrieve notifications for the currently logged-in user."""
-    return notification_service.get_user_notifications(db, current_user.id, include_read)
+    """Retrieve notifications for the currently logged-in user (paginated and filterable)."""
+    notifs = notification_service.get_user_notifications(db, current_user.id, include_read)
+    
+    if type:
+        if type == "assignments":
+            notifs = [n for n in notifs if n.type == "assignment"]
+        elif type == "trfs":
+            notifs = [n for n in notifs if n.type in ("trf", "status", "approval", "rejection")]
+        elif type == "documents":
+            notifs = [n for n in notifs if n.type in ("document", "file")]
+        elif type == "system":
+            notifs = [n for n in notifs if n.type not in ("assignment", "trf", "status", "approval", "rejection", "document", "file")]
+        else:
+            notifs = [n for n in notifs if n.type == type]
+            
+    enriched = [_enrich_notification(db, n) for n in notifs]
+    
+    start = (page - 1) * limit
+    end = start + limit
+    return enriched[start:end]
 
 
 @router.put("/read-all", response_model=MessageResponse)
@@ -54,11 +110,13 @@ def read_all_my_notifications(
 @router.put("/{notification_id}/read", response_model=NotificationResponse)
 def read_single_notification(
     notification_id: int,
+    read: bool = True,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Mark a single notification as read."""
-    return notification_service.mark_as_read(db, notification_id)
+    """Mark a single notification as read or unread."""
+    notif = notification_service.update_read_status(db, notification_id, read)
+    return _enrich_notification(db, notif)
 
 
 @router.get("/unread-count")

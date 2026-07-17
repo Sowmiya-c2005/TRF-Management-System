@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useTheme } from "@mui/material/styles";
 import { useSearchParams } from "react-router-dom";
-
-import Box from "@mui/material/Box";
+import { useTheme } from "@mui/material/styles";
+import { motion, AnimatePresence } from "framer-motion";import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";

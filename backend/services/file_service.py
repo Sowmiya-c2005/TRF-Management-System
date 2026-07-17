@@ -18,7 +18,7 @@ from backend.repositories.folder_repository import FolderRepository
 from backend.repositories.trf_repository import TRFRepository
 from backend.services.sharepoint_service import SharePointService
 from backend.services import audit_service, notification_service
-from backend.services.email_service import email_file_uploaded, email_file_deleted
+from backend.services.email_service import email_file_uploaded, email_file_deleted, email_file_replaced
 from backend.services.storage_service import get_storage_root
 from backend.utils.logging_config import get_logger
 
@@ -281,6 +281,15 @@ def replace_file(
         notif_type="file")
 
     logger.info(f"File replaced: '{file_name}' → v{next_ver}")
+
+    # Email admins when Engineer/Manager replaces a file
+    try:
+        actor_role = current_user.role if current_user else "System"
+        if actor_role in ("Engineer", "Manager"):
+            email_file_replaced(db, trf_number, folder_name, file_name, user_name, actor_role)
+    except Exception as e:
+        logger.warning(f"File replace email error: {e}")
+
     return file_name
 
 

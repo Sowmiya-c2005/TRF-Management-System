@@ -9,87 +9,13 @@ import { login } from "../services/userService";
 import { useApp } from "../context/AppContext";
 
 /* ─────────────────────────────────────────────────────────────────
-   SVG ICONS — animated, exact reference style
+   Role → dashboard route mapping (DB-driven, no hardcoded creds)
 ───────────────────────────────────────────────────────────────── */
-const AdminIcon = () => (
-  <motion.svg width="38" height="38" viewBox="0 0 24 24" fill="none"
-    stroke="#c4b5fd" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
-    animate={{ filter:["drop-shadow(0 0 4px #c4b5fd66)","drop-shadow(0 0 14px #c4b5fdcc)","drop-shadow(0 0 4px #c4b5fd66)"] }}
-    transition={{ duration:2.5, repeat:Infinity, ease:"easeInOut" }}>
-    <path d="M12 2L3 7v5c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7z"/>
-    <motion.polyline points="9 12 11 14 15 10" stroke="#e9d5ff"
-      animate={{ pathLength:[0,1,1,0] }}
-      transition={{ duration:2.5, repeat:Infinity, ease:"easeInOut", times:[0,0.4,0.8,1] }}/>
-  </motion.svg>
-);
-
-const EngineerIcon = () => (
-  <motion.svg width="38" height="38" viewBox="0 0 24 24" fill="none"
-    stroke="#67e8f9" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
-    animate={{ rotate:360 }}
-    transition={{ duration:5, repeat:Infinity, ease:"linear" }}
-    style={{ filter:"drop-shadow(0 0 10px rgba(34,211,238,0.90))" }}>
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-  </motion.svg>
-);
-
-const ManagerIcon = () => (
-  <svg width="38" height="38" viewBox="0 0 24 24" fill="none"
-    stroke="#fcd34d" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
-    style={{ filter:"drop-shadow(0 0 8px rgba(252,211,77,0.80))" }}>
-    <motion.line x1="18" y1="20" x2="18" animate={{ y2:[10,5,10] }} transition={{ duration:1.4, repeat:Infinity, ease:"easeInOut" }}/>
-    <motion.line x1="12" y1="20" x2="12" animate={{ y2:[4,10,4] }} transition={{ duration:1.4, repeat:Infinity, ease:"easeInOut", delay:0.3 }}/>
-    <motion.line x1="6"  y1="20" x2="6"  animate={{ y2:[14,8,14] }} transition={{ duration:1.4, repeat:Infinity, ease:"easeInOut", delay:0.6 }}/>
-    <line x1="2" y1="20" x2="22" y2="20"/>
-  </svg>
-);
-
-const ViewerIcon = () => (
-  <motion.svg width="38" height="38" viewBox="0 0 24 24" fill="none"
-    stroke="#6ee7b7" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
-    style={{ filter:"drop-shadow(0 0 8px rgba(110,231,183,0.80))" }}>
-    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/>
-    <motion.circle cx="12" cy="12" animate={{ r:[3,4.5,3] }}
-      transition={{ duration:2, repeat:Infinity, ease:"easeInOut" }}/>
-  </motion.svg>
-);
-
-/* ─────────────────────────────────────────────────────────────────
-   ROLES — exact reference colours
-   Admin:    dark purple glass
-   Engineer: teal-blue glass
-   Manager:  gold-brown glass
-───────────────────────────────────────────────────────────────── */
-const ROLES = [
-  {
-    key:"Admin",    label:"Administrator", email:"sowmiya.novelx@gmail.com",    password:"Admin@123",
-    cardBg:  "linear-gradient(135deg, rgba(58,22,148,0.80) 0%, rgba(38,12,90,0.68) 100%)",
-    backBg:  "linear-gradient(135deg, rgba(45,16,110,0.70) 0%, rgba(28,8,72,0.58) 100%)",
-    border:  "rgba(180,155,255,0.62)",
-    glow:    "rgba(139,92,246,0.88)",
-    accent:  "#c4b5fd",
-    Icon: AdminIcon,
-  },
-  {
-    key:"Engineer", label:"Engineer",       email:"engineer1@trf.com", password:"engineer123",
-    cardBg:  "linear-gradient(135deg, rgba(8,108,155,0.80) 0%, rgba(0,68,108,0.68) 100%)",
-    backBg:  "linear-gradient(135deg, rgba(0,82,122,0.70)  0%, rgba(0,50,88,0.58)  100%)",
-    border:  "rgba(56,210,245,0.65)",
-    glow:    "rgba(6,182,212,0.88)",
-    accent:  "#67e8f9",
-    Icon: EngineerIcon,
-  },
-  {
-    key:"Manager",  label:"Manager",        email:"manager@trf.com",  password:"manager123",
-    cardBg:  "linear-gradient(135deg, rgba(120,72,8,0.78)  0%, rgba(78,42,0,0.65)  100%)",
-    backBg:  "linear-gradient(135deg, rgba(95,55,4,0.68)   0%, rgba(62,32,0,0.55)  100%)",
-    border:  "rgba(252,196,42,0.62)",
-    glow:    "rgba(245,158,11,0.88)",
-    accent:  "#fcd34d",
-    Icon: ManagerIcon,
-  },
-];
+const ROLE_ROUTES = {
+  Admin:    "/dashboard/admin",
+  Manager:  "/dashboard/manager",
+  Engineer: "/dashboard/engineer",
+};
 
 
 /* ─────────────────────────────────────────────────────────────────
@@ -509,25 +435,30 @@ export default function Login() {
     try {
       const res = await login(usr.trim(), pw);
       const d   = res?.data || {};
-      const tok = d.access_token||d.token||d.access||"";
+      const tok = d.access_token || d.token || d.access || "";
       if(!tok) throw new Error("No token received");
-      const role = d.role || "Engineer";
+
+      const role        = d.role         || "Engineer";
       const displayName = d.display_name || d.displayName || d.username || usr.trim();
+
+      // Sign in immediately — role comes directly from the database
       signIn({
-        username:    d.username || usr.trim(),
+        username:      d.username     || usr.trim(),
         role,
         displayName,
-        email:       d.email || usr.trim(),
-        phone:       d.phone || "",
-        token:       tok,
+        email:         d.email        || usr.trim(),
+        phone:         d.phone        || "",
+        token:         tok,
         refresh_token: d.refresh_token || "",
       });
-      toast$("success", `Welcome, ${displayName}! Role: ${role}`);
-      // Role-based redirect
-      const destination = role === "Admin" ? "/" : role === "Manager" ? "/" : "/";
+
+      toast$("success", `Welcome, ${displayName}! Redirecting to your dashboard…`);
+
+      // Auto-redirect to the correct dashboard based on DB role
+      const destination = ROLE_ROUTES[role] || "/dashboard/engineer";
       setTimeout(() => navigate(destination), 900);
     } catch(err) {
-      toast$("error",err?.response?.data?.detail||err?.message||"Login failed");
+      toast$("error", err?.response?.data?.detail || err?.message || "Login failed");
     } finally { setLoad(false); }
   };
 

@@ -7,6 +7,9 @@ class TRFAssignmentRequest(BaseModel):
     trf_id: int = Field(..., description="TRF ID to assign")
     manager_id: Optional[int] = Field(None, description="Manager ID to assign")
     engineer_ids: List[int] = Field(default_factory=list, description="List of Engineer IDs to assign")
+    priority: Optional[str] = Field(None, description="Priority: Low | Medium | High | Critical")
+    due_date: Optional[datetime] = Field(None, description="Project due date")
+    remarks: Optional[str] = Field(None, description="Assignment remarks/notes")
 
 
 class TRFAssignmentResponse(BaseModel):

@@ -43,6 +43,11 @@ class UserStatusRequest(BaseModel):
     is_active: bool
 
 
+class RoleVerifyRequest(BaseModel):
+    role: str
+
+
+
 # ── Responses ─────────────────────────────────────────────────────────────────
 
 class UserResponse(BaseModel):

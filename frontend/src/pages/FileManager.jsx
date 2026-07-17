@@ -89,6 +89,15 @@ export default function FileManager() {
     if (trfNumber) loadFiles(trfNumber, activeFolder);
   }, [trfNumber, activeFolder, loadFiles]);
 
+  // Real-time sync — reload when another user uploads/deletes files
+  useEffect(() => {
+    const handler = () => {
+      if (trfNumber) loadFiles(trfNumber, activeFolder);
+    };
+    window.addEventListener("trf_update_event", handler);
+    return () => window.removeEventListener("trf_update_event", handler);
+  }, [trfNumber, activeFolder, loadFiles]);
+
   const handleBrowse = () => {
     if (!trfInput.trim()) { toast.error("Enter a TRF number"); return; }
     setTrfNumber(trfInput.trim());

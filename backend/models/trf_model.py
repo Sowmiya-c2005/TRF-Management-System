@@ -23,6 +23,10 @@ class TRFRecord(Base):
     # ── Assignments ───────────────────────────────────────────────────────────
     assigned_manager_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    priority = Column(String, default="Medium", nullable=False)
+    due_date = Column(TIMESTAMP, nullable=True)
+    remarks = Column(String, nullable=True)
+    updated_at = Column(TIMESTAMP, nullable=True)
 
     # ── SharePoint integration tracking ───────────────────────────────────────
     # "pending"  → TRF created, folders not yet confirmed on SharePoint
@@ -41,3 +45,8 @@ class TRFRecord(Base):
     engineer_assignments = relationship("TRFEngineerAssignment", back_populates="trf", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="trf", cascade="all, delete-orphan")
     activities = relationship("Activity", back_populates="trf", cascade="all, delete-orphan")
+
+    @property
+    def engineer_ids(self) -> list[int]:
+        return [ea.engineer_id for ea in self.engineer_assignments]
+

@@ -38,9 +38,9 @@ def upload_file(
     folder_name: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))
+    current_user: User = Depends(RoleChecker(["Admin", "Engineer", "Manager"]))
 ):
-    """Upload a file into a TRF sub-folder (supports versioning). Accessible by Admin and Engineer."""
+    """Upload a file into a TRF sub-folder (supports versioning). Accessible by Admin, Engineer, and Manager."""
     check_trf_access(db, current_user, trf_number)
     saved_name = file_service.save_file(db, trf_number, folder_name, file, current_user=current_user)
     return {"message": f"File '{saved_name}' uploaded successfully"}
@@ -52,9 +52,9 @@ def delete_file(
     folder_name: str,
     file_name: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))
+    current_user: User = Depends(RoleChecker(["Admin", "Engineer", "Manager"]))
 ):
-    """Delete a file and all its versions from a TRF sub-folder. Accessible by Admin and Engineer."""
+    """Delete a file and all its versions from a TRF sub-folder. Accessible by Admin, Engineer, and Manager."""
     check_trf_access(db, current_user, trf_number)
     file_service.remove_file(db, trf_number, folder_name, file_name, current_user=current_user)
     return {"message": f"File '{file_name}' deleted successfully"}
@@ -136,9 +136,9 @@ def replace_file(
     file_name: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))
+    current_user: User = Depends(RoleChecker(["Admin", "Engineer", "Manager"]))
 ):
-    """Replace an existing file with a new version. Accessible by Admin and Engineer."""
+    """Replace an existing file with a new version. Accessible by Admin, Engineer, and Manager."""
     check_trf_access(db, current_user, trf_number)
     saved_name = file_service.replace_file(db, trf_number, folder_name, file_name, file, current_user=current_user)
     return {"message": f"File '{saved_name}' replaced successfully"}

@@ -68,7 +68,7 @@ def create_notification(
                 target_emails.append(email)
         else:
             # System-wide events: notify all Admin users
-            admins = db.query(User).filter(User.role == "Admin").all()
+            admins = db.query(User).filter(User.role == "Admin", User.is_active == True).all()
             for admin in admins:
                 email = admin.email or f"{admin.username}@trfportal.com"
                 target_emails.append(email)
@@ -106,8 +106,8 @@ def mark_all_as_read(db: Session, user_id: int) -> None:
     logger.info(f"Marked all notifications as read for user_id: {user_id}")
 
 
-def mark_as_read(db: Session, notification_id: int) -> Notification:
-    """Mark a single notification as read."""
+def update_read_status(db: Session, notification_id: int, read: bool) -> Notification:
+    """Update a single notification's read/unread status."""
     notification = notif_repo.get(db, notification_id)
     if not notification:
         from fastapi import HTTPException, status
@@ -115,10 +115,15 @@ def mark_as_read(db: Session, notification_id: int) -> Notification:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Notification not found"
         )
-    notification.read = True
+    notification.read = read
     notif_repo.commit(db)
-    logger.info(f"Marked notification {notification_id} as read.")
+    logger.info(f"Marked notification {notification_id} as read={read}.")
     return notification
+
+
+def mark_as_read(db: Session, notification_id: int) -> Notification:
+    """Mark a single notification as read."""
+    return update_read_status(db, notification_id, True)
 
 
 def get_unread_count(db: Session, user_id: int) -> int:

@@ -26,23 +26,27 @@ import LogoutRoundedIcon       from "@mui/icons-material/LogoutRounded";
 import NotificationsRoundedIcon from "@mui/icons-material/NotificationsRounded";
 import ArticleRoundedIcon      from "@mui/icons-material/ArticleRounded";
 import HistoryRoundedIcon      from "@mui/icons-material/HistoryRounded";
+import AssignmentIndRoundedIcon from "@mui/icons-material/AssignmentIndRounded";
+import ViewKanbanRoundedIcon   from "@mui/icons-material/ViewKanbanRounded";
 
 import { useApp } from "../context/AppContext";
 
 const NAV_ITEMS = [
-  { path: "/",              label: "Dashboard",     icon: <DashboardRoundedIcon />,     group: "main"    },
-  { path: "/create",        label: "Create TRF",    icon: <AddBoxRoundedIcon />,        group: "main"    },
-  { path: "/search",        label: "Search TRF",    icon: <SearchRoundedIcon />,        group: "main"    },
-  { path: "/all",           label: "All TRFs",      icon: <ListAltRoundedIcon />,       group: "main"    },
-  { path: "/upload",        label: "Upload Files",  icon: <CloudUploadRoundedIcon />,   group: "files"   },
-  { path: "/files",         label: "File Manager",  icon: <FolderOpenRoundedIcon />,    group: "files"   },
-  { path: "/update",        label: "Update TRF",    icon: <EditRoundedIcon />,          group: "files"   },
-  { path: "/analytics",     label: "Analytics",     icon: <BarChartRoundedIcon />,      group: "insights"},
-  { path: "/reports",       label: "Reports",       icon: <AssessmentRoundedIcon />,    group: "insights"},
-  { path: "/notifications", label: "Notifications", icon: <NotificationsRoundedIcon />, group: "admin", badge: true },
-  { path: "/users",         label: "Users",         icon: <PeopleRoundedIcon />,        group: "admin"   },
-  { path: "/audit",         label: "Audit Log",     icon: <HistoryRoundedIcon />,       group: "admin", adminOnly: true },
-  { path: "/settings",      label: "Settings",      icon: <SettingsRoundedIcon />,      group: "admin"   },
+  { path: "/",              label: "Dashboard",         icon: <DashboardRoundedIcon />,      group: "main"    },
+  { path: "/workspace",     label: "Project Workspace", icon: <ViewKanbanRoundedIcon />,      group: "main", allowedRoles: ["Admin", "Manager", "Engineer"] },
+  { path: "/create",        label: "Create TRF",        icon: <AddBoxRoundedIcon />,          group: "main", allowedRoles: ["Admin", "Engineer"] },
+  { path: "/assign",        label: "Assign TRF",        icon: <AssignmentIndRoundedIcon />,   group: "main", allowedRoles: ["Admin"] },
+  { path: "/search",        label: "Search TRF",        icon: <SearchRoundedIcon />,          group: "main"    },
+  { path: "/all",           label: "All TRFs",          icon: <ListAltRoundedIcon />,         group: "main"    },
+  { path: "/upload",        label: "Upload Files",      icon: <CloudUploadRoundedIcon />,     group: "files", allowedRoles: ["Admin", "Engineer", "Manager"] },
+  { path: "/files",         label: "File Manager",      icon: <FolderOpenRoundedIcon />,      group: "files"   },
+  { path: "/update",        label: "Update TRF",        icon: <EditRoundedIcon />,            group: "files", allowedRoles: ["Admin", "Engineer", "Manager"] },
+  { path: "/analytics",     label: "Analytics",         icon: <BarChartRoundedIcon />,        group: "insights", allowedRoles: ["Admin", "Manager"] },
+  { path: "/reports",       label: "Reports",           icon: <AssessmentRoundedIcon />,      group: "insights"   },
+  { path: "/notifications", label: "Notifications",     icon: <NotificationsRoundedIcon />,  group: "admin", badge: true },
+  { path: "/users",         label: "Users",             icon: <PeopleRoundedIcon />,          group: "admin", allowedRoles: ["Admin"] },
+  { path: "/audit",         label: "Audit Log",         icon: <HistoryRoundedIcon />,         group: "admin", adminOnly: true },
+  { path: "/settings",      label: "Settings",          icon: <SettingsRoundedIcon />,        group: "admin"   },
 ];
 
 const GROUPS = [
@@ -277,6 +281,8 @@ export default function Sidebar() {
               {items.map((item, i) => {
                 // Hide admin-only items from non-Admin users
                 if (item.adminOnly && user?.role !== "Admin") return null;
+                // Hide items not allowed for user role
+                if (item.allowedRoles && !item.allowedRoles.includes(user?.role)) return null;
                 return (
                   <NavItem
                     key={item.path} item={item}

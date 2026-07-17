@@ -6,16 +6,42 @@
  * have NO auth middleware and will always work for read operations.
  *
  * Strategy:
- *  - getAllTRFs      → tries /trfs/ first, falls back to /all-trfs
+ *  - getAllTRFs      → /trfs/ with pagination/filter/sort support
  *  - getDashboardStats → /dashboard-stats (legacy, always works)
  *  - write operations  → /trfs/* (require token for REQUIRE_AUTH=true envs)
  */
 import API from "./api";
 
-// ── Read operations (try modern → legacy fallback) ────────────────────────────
+// ── Read operations ───────────────────────────────────────────────────────────
 
-export const getAllTRFs = () =>
-  API.get("/all-trfs");                      // legacy — no auth required, always works
+/**
+ * Fetch paginated TRF list from /trfs/
+ * Returns: { items: TRFResponse[], total, page, pages, per_page }
+ *
+ * @param {object} params
+ * @param {string}  [params.search]      - Search by TRF number or project name
+ * @param {string}  [params.status]      - Filter by status
+ * @param {string}  [params.priority]    - Filter by priority
+ * @param {string}  [params.sharepoint_status] - Filter by SharePoint status
+ * @param {string}  [params.sort_by]     - trf_number|project_name|status|priority|created_at|due_date
+ * @param {string}  [params.sort_order]  - asc|desc
+ * @param {number}  [params.page]        - 1-based page number
+ * @param {number}  [params.per_page]    - Records per page (1-100)
+ */
+export const getAllTRFs = (params = {}) => {
+  // Strip undefined/null/empty values to keep query string clean
+  const clean = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "")
+  );
+  return API.get("/trfs/", { params: clean });
+};
+
+/**
+ * Legacy all-trfs endpoint — no auth required, always works.
+ * Use when the modern endpoint is unavailable or for quick reads.
+ */
+export const getAllTRFsLegacy = () =>
+  API.get("/all-trfs");
 
 export const getDashboardStats = () =>
   API.get("/dashboard-stats");               // legacy — returns { total_trfs: N }

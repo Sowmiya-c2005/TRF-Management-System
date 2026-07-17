@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from backend.database.database import get_db
 from backend.schemas.comment_schema import CommentCreate, CommentUpdate, CommentResponse
 from backend.services import comment_service, audit_service, activity_service
-from backend.services.email_service import email_comment_added
+from backend.services.email_service import (
+    email_comment_added, email_comment_updated, email_comment_deleted
+)
 from backend.middleware.auth_middleware import get_current_user, check_trf_id_access
 from backend.models.user_model import User
 
@@ -111,14 +113,26 @@ def update_comment(
 ):
     """Update a comment (only by the author)."""
     comment = comment_service.update_comment(db, comment_id, current_user.id, payload.content)
-    
+
     audit_service.log_action(
         db,
         user_id=current_user.id,
         action="UPDATE_COMMENT",
         details=f"User '{current_user.username}' updated comment {comment_id}"
     )
-    
+
+    # Resolve TRF number and notify admins
+    try:
+        from backend.repositories.trf_repository import TRFRepository
+        trf = TRFRepository().get(db, comment.trf_id)
+        trf_number = trf.trf_number if trf else f"ID:{comment.trf_id}"
+        email_comment_updated(
+            db, trf_number, payload.content,
+            current_user.username, current_user.role
+        )
+    except Exception as email_err:
+        import logging; logging.getLogger("comment_routes").warning(f"Comment update email error: {email_err}")
+
     return comment
 
 
@@ -129,13 +143,32 @@ def delete_comment(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a comment (by author or admin)."""
+    # Resolve TRF number before deletion
+    from backend.repositories.comment_repository import CommentRepository
+    comment = CommentRepository().get(db, comment_id)
+    trf_number = None
+    if comment:
+        from backend.repositories.trf_repository import TRFRepository
+        trf = TRFRepository().get(db, comment.trf_id)
+        trf_number = trf.trf_number if trf else f"ID:{comment.trf_id}"
+
     comment_service.delete_comment(db, comment_id, current_user.id, current_user.role)
-    
+
     audit_service.log_action(
         db,
         user_id=current_user.id,
         action="DELETE_COMMENT",
         details=f"User '{current_user.username}' deleted comment {comment_id}"
     )
-    
+
+    # Notify admins when Engineer/Manager deletes a comment
+    try:
+        if trf_number:
+            email_comment_deleted(
+                db, trf_number,
+                current_user.username, current_user.role
+            )
+    except Exception as email_err:
+        import logging; logging.getLogger("comment_routes").warning(f"Comment delete email error: {email_err}")
+
     return {"message": "Comment deleted successfully"}

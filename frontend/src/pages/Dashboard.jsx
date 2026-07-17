@@ -11,7 +11,7 @@ import { useApp } from "../context/AppContext";
 import { useGreeting } from "../hooks/useGreeting";
 import { getAllTRFs } from "../services/trfService";
 import { listFiles }  from "../services/fileService";
-import axios from "axios";
+import API from "../services/api";
 
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
@@ -412,10 +412,7 @@ export default function Dashboard() {
   useEffect(()=>{
     setLoading(true);
 
-    const token = localStorage.getItem('token');
-    axios.get('http://localhost:8000/dashboard/stats', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
+    API.get('/dashboard/stats')
       .then(res => {
         const apiStats = res.data;
         setStats({
@@ -427,10 +424,11 @@ export default function Dashboard() {
           unread_notifications:  apiStats.unread_notifications  || 0,
         });
         
-        return getAllTRFs();
+        return getAllTRFs({ per_page: 200 });
       })
       .then(res => {
-        const list = Array.isArray(res.data) ? res.data : [];
+        // Handle both paginated envelope {items:[...]} and legacy plain array
+        const list = Array.isArray(res.data) ? res.data : (res.data?.items || []);
         setMonthly(buildMonthly(list));
         
         // Group by project_name and get progress based on status
@@ -457,9 +455,7 @@ export default function Dashboard() {
         setDbProjects(derived.slice(0, 5));
 
         // Fetch recent activities from backend
-        return axios.get('http://localhost:8000/dashboard/recent-activities', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        return API.get('/dashboard/recent-activities');
       })
       .then(res => {
         const list = Array.isArray(res.data?.activities) ? res.data.activities : [];
@@ -478,9 +474,9 @@ export default function Dashboard() {
       })
       .catch(err => {
         console.error('Dashboard API error:', err);
-        getAllTRFs()
+        getAllTRFs({ per_page: 200 })
           .then(async res=>{
-            const list = Array.isArray(res.data) ? res.data : [];
+            const list = Array.isArray(res.data) ? res.data : (res.data?.items || []);
             const uniq = new Set(list.map(t=>(t.project_name||"").trim()).filter(Boolean));
 
             let totalFiles = 0;

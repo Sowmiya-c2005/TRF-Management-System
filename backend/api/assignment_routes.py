@@ -11,7 +11,7 @@ from backend.schemas.assignment_schema import (
     TRFStatusUpdateRequest, TRFStatusResponse
 )
 from backend.services import assignment_service, audit_service, activity_service, notification_service
-from backend.services.email_service import email_status_changed
+from backend.services.email_service import email_status_changed, email_project_assigned
 from backend.middleware.auth_middleware import get_current_user, require_admin
 from backend.models.user_model import User
 from backend.models.trf_model import TRFRecord
@@ -31,7 +31,10 @@ def assign_trf(
         payload.trf_id,
         payload.manager_id,
         payload.engineer_ids,
-        current_user.id
+        current_user.id,
+        priority=payload.priority,
+        due_date=payload.due_date,
+        remarks=payload.remarks,
     )
     
     # Log activity
@@ -40,17 +43,34 @@ def assign_trf(
         trf_id=payload.trf_id,
         user_id=current_user.id,
         action_type="TRF_ASSIGNED",
-        description=f"TRF {trf.trf_number} assigned to manager ID {payload.manager_id} and {len(payload.engineer_ids)} engineers"
+        description=f"TRF {trf.trf_number} assigned to manager ID {payload.manager_id} and {len(payload.engineer_ids)} engineer(s)"
     )
     
     audit_service.log_action(
         db,
         user_id=current_user.id,
         action="ASSIGN_TRF",
-        details=f"Admin '{current_user.username}' assigned TRF {trf.trf_number}"
+        details=f"Admin '{current_user.username}' assigned TRF {trf.trf_number} — priority: {payload.priority}, due: {payload.due_date}"
     )
+
+    # Fire in-app notifications to assigned users
+    try:
+        notification_service.notify_trf_assigned(
+            db, trf.trf_number, payload.manager_id, payload.engineer_ids, current_user.display_name or current_user.username
+        )
+    except Exception as notif_err:
+        import logging; logging.getLogger("assignment_routes").warning(f"Assignment notification error: {notif_err}")
     
-    return {"message": "TRF assigned successfully", "trf_number": trf.trf_number}
+    # Email admins on assignment if actor is Manager/Engineer
+    try:
+        email_project_assigned(
+            db, trf.trf_number, payload.manager_id, payload.engineer_ids,
+            current_user.username, current_user.role
+        )
+    except Exception as email_err:
+        import logging; logging.getLogger("assignment_routes").warning(f"Assignment email error: {email_err}")
+    
+    return {"message": "TRF assigned successfully", "trf_number": trf.trf_number, "status": trf.status}
 
 
 @router.get("/trf/{trf_id}")
@@ -127,3 +147,59 @@ def update_trf_status(
         import logging; logging.getLogger("assignment_routes").warning(f"Status email error: {email_err}")
 
     return trf
+
+
+@router.get("/users")
+def get_assignable_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Return all Managers and Engineers for assignment dropdowns. Admin only."""
+    from backend.models.user_model import User as UserModel
+    managers  = db.query(UserModel).filter(UserModel.role == "Manager",  UserModel.is_active == True).all()
+    engineers = db.query(UserModel).filter(UserModel.role == "Engineer", UserModel.is_active == True).all()
+    return {
+        "managers":  [{"id": u.id, "username": u.username, "display_name": u.display_name or u.username, "email": u.email} for u in managers],
+        "engineers": [{"id": u.id, "username": u.username, "display_name": u.display_name or u.username, "email": u.email} for u in engineers],
+    }
+
+
+@router.get("/trf-detail/{trf_id}")
+def get_trf_assignment_detail(
+    trf_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get full TRF assignment details including manager, engineers, priority, due date."""
+    from backend.models.trf_model import TRFRecord
+    from backend.models.user_model import User as UserModel
+    trf = db.query(TRFRecord).filter(TRFRecord.id == trf_id).first()
+    if not trf:
+        from fastapi import HTTPException, status as http_status
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="TRF not found")
+
+    manager = None
+    if trf.assigned_manager_id:
+        m = db.query(UserModel).filter(UserModel.id == trf.assigned_manager_id).first()
+        if m:
+            manager = {"id": m.id, "username": m.username, "display_name": m.display_name or m.username, "email": m.email}
+
+    engineers = []
+    for ea in trf.engineer_assignments:
+        e = db.query(UserModel).filter(UserModel.id == ea.engineer_id).first()
+        if e:
+            engineers.append({"id": e.id, "username": e.username, "display_name": e.display_name or e.username, "email": e.email})
+
+    return {
+        "id":           trf.id,
+        "trf_number":   trf.trf_number,
+        "project_name": trf.project_name,
+        "status":       trf.status,
+        "priority":     trf.priority,
+        "due_date":     trf.due_date.isoformat() if trf.due_date else None,
+        "remarks":      trf.remarks,
+        "manager":      manager,
+        "engineers":    engineers,
+        "created_at":   trf.created_at.isoformat() if trf.created_at else None,
+        "updated_at":   trf.updated_at.isoformat() if trf.updated_at else None,
+    }

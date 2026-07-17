@@ -43,21 +43,12 @@ export default function AssignTRFDialog({ open, onClose, trf, onSuccess }) {
   const fetchUsers = async () => {
     setFetchingUsers(true);
     try {
-      const token = localStorage.getItem('token');
       const [managersRes, engineersRes] = await Promise.all([
-        fetch('http://localhost:8000/api/users?role=Manager', {
-          headers: { Authorization: `Bearer ${token}` }
-        }),
-        fetch('http://localhost:8000/api/users?role=Engineer', {
-          headers: { Authorization: `Bearer ${token}` }
-        })
+        API.get('/users/', { params: { role: 'Manager' } }),
+        API.get('/users/', { params: { role: 'Engineer' } }),
       ]);
-
-      const managersData = await managersRes.json();
-      const engineersData = await engineersRes.json();
-
-      setManagers(Array.isArray(managersData) ? managersData : []);
-      setEngineers(Array.isArray(engineersData) ? engineersData : []);
+      setManagers(Array.isArray(managersRes.data) ? managersRes.data : []);
+      setEngineers(Array.isArray(engineersRes.data) ? engineersRes.data : []);
     } catch (error) {
       console.error('Failed to fetch users:', error);
       toast.error('Failed to load users');
@@ -74,34 +65,19 @@ export default function AssignTRFDialog({ open, onClose, trf, onSuccess }) {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/assignments/assign', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          trf_id: trf.id,
-          manager_id: selectedManager || null,
-          engineer_ids: selectedEngineers
-        })
+      await API.post('/assignments/assign', {
+        trf_id: trf.id,
+        manager_id: selectedManager || null,
+        engineer_ids: selectedEngineers,
       });
-
-      if (response.ok) {
-        toast.success('TRF assigned successfully');
-        onSuccess?.();
-        onClose();
-        // Reset form
-        setSelectedManager("");
-        setSelectedEngineers([]);
-      } else {
-        const error = await response.json();
-        toast.error(error.detail || 'Assignment failed');
-      }
+      toast.success('TRF assigned successfully');
+      onSuccess?.();
+      onClose();
+      setSelectedManager("");
+      setSelectedEngineers([]);
     } catch (error) {
       console.error('Assignment error:', error);
-      toast.error('Failed to assign TRF');
+      toast.error(error?.response?.data?.detail || 'Failed to assign TRF');
     } finally {
       setLoading(false);
     }

@@ -6,6 +6,7 @@ import {
   IconButton, Chip, Divider, CircularProgress, Alert
 } from "@mui/material";
 import { useApp } from "../context/AppContext";
+import API from "../services/api";
 import toast from "react-hot-toast";
 
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
@@ -256,17 +257,8 @@ export default function CommentsSection({ trfId }) {
   const fetchComments = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/comments/trf/${trfId}/thread`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setComments(data.comments || []);
-      } else {
-        console.error('Failed to fetch comments');
-      }
+      const response = await API.get(`/comments/trf/${trfId}/thread`);
+      setComments(response.data?.comments || []);
     } catch (error) {
       console.error('Comments fetch error:', error);
     } finally {
@@ -278,32 +270,18 @@ export default function CommentsSection({ trfId }) {
     if (!newComment.trim()) return;
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/comments/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          trf_id: trfId,
-          content: newComment,
-          parent_id: replyTo?.id || null
-        })
+      await API.post('/comments/', {
+        trf_id: trfId,
+        content: newComment,
+        parent_id: replyTo?.id || null,
       });
-
-      if (response.ok) {
-        toast.success('Comment added');
-        setNewComment("");
-        setReplyTo(null);
-        fetchComments();
-      } else {
-        const error = await response.json();
-        toast.error(error.detail || 'Failed to add comment');
-      }
+      toast.success('Comment added');
+      setNewComment("");
+      setReplyTo(null);
+      fetchComments();
     } catch (error) {
       console.error('Comment submit error:', error);
-      toast.error('Failed to add comment');
+      toast.error(error?.response?.data?.detail || 'Failed to add comment');
     } finally {
       setSubmitting(false);
     }
@@ -311,47 +289,23 @@ export default function CommentsSection({ trfId }) {
 
   const handleEditComment = async (commentId, content) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/comments/${commentId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ content })
-      });
-
-      if (response.ok) {
-        toast.success('Comment updated');
-        fetchComments();
-      } else {
-        const error = await response.json();
-        toast.error(error.detail || 'Failed to update comment');
-      }
+      await API.put(`/comments/${commentId}`, { content });
+      toast.success('Comment updated');
+      fetchComments();
     } catch (error) {
       console.error('Comment edit error:', error);
-      toast.error('Failed to update comment');
+      toast.error(error?.response?.data?.detail || 'Failed to update comment');
     }
   };
 
   const handleDeleteComment = async (commentId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/comments/${commentId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        toast.success('Comment deleted');
-        fetchComments();
-      } else {
-        const error = await response.json();
-        toast.error(error.detail || 'Failed to delete comment');
-      }
+      await API.delete(`/comments/${commentId}`);
+      toast.success('Comment deleted');
+      fetchComments();
     } catch (error) {
       console.error('Comment delete error:', error);
-      toast.error('Failed to delete comment');
+      toast.error(error?.response?.data?.detail || 'Failed to delete comment');
     }
   };
 

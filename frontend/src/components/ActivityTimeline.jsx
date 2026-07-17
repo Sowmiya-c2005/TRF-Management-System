@@ -6,6 +6,7 @@ import {
   IconButton, Tooltip, CircularProgress, Alert
 } from "@mui/material";
 import { useApp } from "../context/AppContext";
+import API from "../services/api";
 import toast from "react-hot-toast";
 
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
@@ -83,17 +84,10 @@ export default function ActivityTimeline({ trfId, limit = 10 }) {
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/activities/trf/${trfId}?limit=${expanded ? 50 : limit}`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const response = await API.get(`/activities/trf/${trfId}`, {
+        params: { limit: expanded ? 50 : limit }
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setActivities(data.activities || []);
-      } else {
-        console.error('Failed to fetch activities');
-      }
+      setActivities(response.data?.activities || []);
     } catch (error) {
       console.error('Activities fetch error:', error);
     } finally {

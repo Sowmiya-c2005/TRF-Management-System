@@ -197,15 +197,20 @@ def get_engineer_dashboard_stats(db: Session, engineer_id: int) -> dict:
     }
 
 
-def get_status_distribution(db: Session) -> List[dict]:
+def get_status_distribution(db: Session, manager_id: int = None, engineer_id: int = None) -> List[dict]:
     """Get distribution of TRFs by status."""
     statuses = ["Draft", "Assigned", "In Progress", "Under Review", "Approved", "Completed", "Archived"]
     distribution = []
     
     for status in statuses:
-        count = db.query(func.count(TRFRecord.id)).filter(
-            TRFRecord.status == status
-        ).scalar() or 0
+        query = db.query(func.count(TRFRecord.id)).filter(TRFRecord.status == status)
+        if manager_id is not None:
+            query = query.filter(TRFRecord.assigned_manager_id == manager_id)
+        elif engineer_id is not None:
+            query = query.join(TRFEngineerAssignment, TRFEngineerAssignment.trf_id == TRFRecord.id).filter(
+                TRFEngineerAssignment.engineer_id == engineer_id
+            )
+        count = query.scalar() or 0
         distribution.append({"status": status, "count": count})
     
     return distribution

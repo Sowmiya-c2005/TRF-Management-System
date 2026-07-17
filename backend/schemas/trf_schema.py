@@ -20,6 +20,11 @@ def validate_trf_number(v: str) -> str:
 class TRFCreate(BaseModel):
     trf_number:   str = Field(..., min_length=1, description="Unique TRF identifier, e.g. TRF-2026-1")
     project_name: str = Field(..., min_length=1, description="Human-readable project name")
+    assigned_manager_id: Optional[int] = Field(None, description="Manager ID to assign")
+    engineer_ids: List[int] = Field(default_factory=list, description="Engineer IDs to assign")
+    priority: Optional[str] = Field("Medium", description="Project priority")
+    due_date: Optional[datetime] = Field(None, description="Project due date")
+    remarks: Optional[str] = Field(None, description="Project remarks")
 
     @field_validator("trf_number")
     @classmethod
@@ -28,7 +33,12 @@ class TRFCreate(BaseModel):
 
 
 class TRFUpdate(BaseModel):
-    project_name: str = Field(..., min_length=1, description="Updated project name")
+    project_name: Optional[str] = Field(None, description="Updated project name")
+    assigned_manager_id: Optional[int] = Field(None, description="Manager ID to assign")
+    engineer_ids: List[int] = Field(default_factory=list, description="Engineer IDs to assign")
+    priority: Optional[str] = Field(None, description="Project priority")
+    due_date: Optional[datetime] = Field(None, description="Project due date")
+    remarks: Optional[str] = Field(None, description="Project remarks")
 
 
 # ── File / Folder nested responses ────────────────────────────────────────────
@@ -63,6 +73,18 @@ class TRFResponse(BaseModel):
     created_at:          datetime
     sharepoint_status:   str = "pending"
     sharepoint_message:  Optional[str] = None
+    status:              str = "Draft"
+    status_updated_at:   Optional[datetime] = None
+    assigned_manager_id: Optional[int] = None
+    engineer_ids:        List[int] = []
+    priority:            str = "Medium"
+    due_date:            Optional[datetime] = None
+    remarks:             Optional[str] = None
+    created_by:          Optional[str] = None
+    assigned_by:         Optional[str] = None
+    last_updated_by:     Optional[str] = None
+    last_updated_time:   Optional[datetime] = None
+    completion_pct:      Optional[int] = 0
 
     model_config = {"from_attributes": True}
 

@@ -23,6 +23,7 @@ import ArrowForwardRoundedIcon  from "@mui/icons-material/ArrowForwardRounded";
 import ArrowBackRoundedIcon     from "@mui/icons-material/ArrowBackRounded";
 import TagRoundedIcon           from "@mui/icons-material/TagRounded";
 import BusinessCenterRoundedIcon from "@mui/icons-material/BusinessCenterRounded";
+import AssignmentIndRoundedIcon from "@mui/icons-material/AssignmentIndRounded";
 
 import { createTRF } from "../services/trfService";
 import { useApp }    from "../context/AppContext";
@@ -371,6 +372,16 @@ export default function CreateTRF() {
                 >
                   View All TRFs
                 </Button>
+                {user?.role === "Admin" && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AssignmentIndRoundedIcon />}
+                    onClick={() => navigate(`/assign?trf=${trfNumber}`)}
+                    sx={{ borderRadius: "12px", background: "linear-gradient(135deg,#8b5cf6,#6366f1)" }}
+                  >
+                    Assign Project
+                  </Button>
+                )}
                 <Button
                   variant="outlined"
                   startIcon={<CloudUploadRoundedIcon />}

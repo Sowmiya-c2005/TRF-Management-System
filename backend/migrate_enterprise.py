@@ -23,6 +23,7 @@ MIGRATIONS = [
     "ALTER TABLE trf_records ADD COLUMN IF NOT EXISTS priority VARCHAR DEFAULT 'Medium';",
     "ALTER TABLE trf_records ADD COLUMN IF NOT EXISTS due_date TIMESTAMP;",
     "ALTER TABLE trf_records ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP;",
+    "ALTER TABLE trf_records ADD COLUMN IF NOT EXISTS remarks VARCHAR;",
 ]
 
 def run():
@@ -31,11 +32,11 @@ def run():
             try:
                 conn.execute(text(sql))
                 conn.commit()
-                print(f"✓ {sql[:60]}...")
+                print(f"OK: {sql[:60]}...")
             except Exception as e:
                 conn.rollback()
-                print(f"⚠ Skipped (already exists?): {e}")
-    print("\n✅ Enterprise migration complete.")
+                print(f"Skipped (already exists?): {e}")
+    print("\nEnterprise migration complete.")
 
 if __name__ == "__main__":
     run()

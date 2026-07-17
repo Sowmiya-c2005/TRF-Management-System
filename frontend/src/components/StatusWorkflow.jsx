@@ -92,26 +92,12 @@ export default function StatusWorkflow({ trf, onUpdate, editable = true }) {
     handleMenuClose();
     setUpdating(true);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/assignments/trf/${trf.id}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      if (response.ok) {
-        toast.success(`Status updated to ${newStatus}`);
-        onUpdate?.({ ...trf, status: newStatus });
-      } else {
-        const error = await response.json();
-        toast.error(error.detail || 'Failed to update status');
-      }
+      await API.put(`/assignments/trf/${trf.id}/status`, { status: newStatus });
+      toast.success(`Status updated to ${newStatus}`);
+      onUpdate?.({ ...trf, status: newStatus });
     } catch (error) {
       console.error('Status update error:', error);
-      toast.error('Failed to update status');
+      toast.error(error?.response?.data?.detail || 'Failed to update status');
     } finally {
       setUpdating(false);
     }

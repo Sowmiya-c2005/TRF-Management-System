@@ -10,8 +10,14 @@
  * IMPORTANT: All backend API calls are guarded — they only fire when a JWT
  * token is present. This prevents 401 console errors for unauthenticated users.
  */
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import API from "../services/api";
+
+// Derive WebSocket URL from the current Axios base URL
+const WS_BASE = (() => {
+  const base = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
+  return base.replace(/^http/, "ws");
+})();
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
@@ -72,6 +78,8 @@ export function AppProvider({ children }) {
   const [notifications, setNotifications] = useState(SEED_NOTIFICATIONS);
   const [activities,    setActivities]    = useState(SEED_ACTIVITIES);
   const [prefs,         setPrefsState]    = useState(loadPrefs);
+  const [wsConnected,   setWsConnected]   = useState(false);
+  const wsRef = useRef(null);
 
   // ── Notifications ──────────────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
@@ -138,6 +146,67 @@ export function AppProvider({ children }) {
       setActivities(SEED_ACTIVITIES);
     }
   }, [user, fetchNotifications, fetchActivities]);
+
+  // ── WebSocket for real-time TRF updates ───────────────────────────────────
+  useEffect(() => {
+    if (!user || !hasToken()) {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+        setWsConnected(false);
+      }
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+    const url   = `${WS_BASE}/notifications/ws?token=${token}`;
+
+    function connect() {
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setWsConnected(true);
+      };
+
+      ws.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          // Refresh notifications panel
+          fetchNotifications();
+          // Broadcast a custom DOM event so any dashboard can listen
+          window.dispatchEvent(new CustomEvent("trf_update_event", { detail: data }));
+        } catch {
+          // ignore malformed frames
+        }
+      };
+
+      ws.onclose = () => {
+        setWsConnected(false);
+        wsRef.current = null;
+        // Auto-reconnect after 5s if user is still logged in
+        if (hasToken()) {
+          setTimeout(connect, 5000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.onclose = null; // prevent auto-reconnect on unmount
+        wsRef.current.close();
+        wsRef.current = null;
+        setWsConnected(false);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // ── Notification helpers ───────────────────────────────────────────────────
 
@@ -251,6 +320,8 @@ export function AppProvider({ children }) {
         activities, addActivity,
         // prefs
         prefs, setPrefs, resetPrefs,
+        // realtime
+        wsConnected,
       }}
     >
       {children}
