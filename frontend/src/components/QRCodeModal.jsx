@@ -28,7 +28,7 @@ import QrCode2RoundedIcon      from "@mui/icons-material/QrCode2Rounded";
 import ContentCopyRoundedIcon  from "@mui/icons-material/ContentCopyRounded";
 import OpenInNewRoundedIcon    from "@mui/icons-material/OpenInNewRounded";
 
-const BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+import { BASE_API_URL as BASE } from "../services/api";
 const APP_URL = import.meta.env.VITE_APP_URL || "http://localhost:5173";
 
 export default function QRCodeModal({ open, onClose, trfNumber, projectName }) {

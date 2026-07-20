@@ -30,6 +30,9 @@ app = FastAPI(
     title="TRF Management System",
     description="Document & Record Tracking API (SOLID Enterprise Edition)",
     version="2.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/api/openapi.json",
 )
 
 # ── Exception Handlers ────────────────────────────────────────────────────────
@@ -49,23 +52,23 @@ app.add_middleware(
 )
 
 # ── Routers ───────────────────────────────────────────────────────────────────
-app.include_router(trf_routes.router)
-app.include_router(file_routes.router)
-app.include_router(user_routes.router)
-app.include_router(audit_routes.router)
-app.include_router(notification_routes.router)
-app.include_router(qr_routes.router)
-app.include_router(storage_routes.router)
-app.include_router(assignment_routes.router)
-app.include_router(activity_routes.router)
-app.include_router(comment_routes.router)
-app.include_router(dashboard_routes.router)
-app.include_router(search_routes.router)
+app.include_router(trf_routes.router, prefix="/api")
+app.include_router(file_routes.router, prefix="/api")
+app.include_router(user_routes.router, prefix="/api")
+app.include_router(audit_routes.router, prefix="/api")
+app.include_router(notification_routes.router, prefix="/api")
+app.include_router(qr_routes.router, prefix="/api")
+app.include_router(storage_routes.router, prefix="/api")
+app.include_router(assignment_routes.router, prefix="/api")
+app.include_router(activity_routes.router, prefix="/api")
+app.include_router(comment_routes.router, prefix="/api")
+app.include_router(dashboard_routes.router, prefix="/api")
+app.include_router(search_routes.router, prefix="/api")
 
 logger.info("FastAPI application routers successfully loaded.")
 
 
-@app.get("/")
+@app.get("/api/health")
 def health():
     return {"message": "TRF Management System Running Successfully", "version": "2.1.0"}
 
@@ -77,13 +80,13 @@ from backend.middleware.auth_middleware import get_current_user, check_trf_acces
 from backend.models.user_model import User
 from fastapi import HTTPException
 
-@app.get("/all-trfs", response_model=list[TRFResponse])
+@app.get("/api/all-trfs", response_model=list[TRFResponse])
 def legacy_all_trfs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     from backend.services.assignment_service import get_user_assigned_trfs
     return get_user_assigned_trfs(db, current_user.id, current_user.role)
 
 
-@app.get("/dashboard-stats")
+@app.get("/api/dashboard-stats")
 def legacy_dashboard_stats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # Return role-aware dashboard stats
     from backend.services import dashboard_service
@@ -99,13 +102,13 @@ def legacy_dashboard_stats(db: Session = Depends(get_db), current_user: User = D
     return stats
 
 
-@app.get("/search-trf/{trf_number}", response_model=TRFResponse)
+@app.get("/api/search-trf/{trf_number}", response_model=TRFResponse)
 def legacy_search_trf(trf_number: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     check_trf_access(db, current_user, trf_number)
     return trf_service.get_trf_by_number(db, trf_number)
 
 
-@app.post("/create-trf")
+@app.post("/api/create-trf")
 def legacy_create_trf(payload: TRFCreate, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))):
     trf = trf_service.create_trf(db, payload, current_user=current_user)
     return {
@@ -116,48 +119,48 @@ def legacy_create_trf(payload: TRFCreate, db: Session = Depends(get_db), current
     }
 
 
-@app.put("/update-trf/{trf_number}")
+@app.put("/api/update-trf/{trf_number}")
 def legacy_update_trf(trf_number: str, project_name: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer"]))):
     check_trf_access(db, current_user, trf_number)
     trf_service.update_trf(db, trf_number, project_name, current_user=current_user)
     return {"message": "TRF Updated Successfully"}
 
 
-@app.delete("/delete-trf/{trf_number}")
+@app.delete("/api/delete-trf/{trf_number}")
 def legacy_delete_trf(trf_number: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin"]))):
     trf_service.delete_trf(db, trf_number, current_user=current_user)
     return {"message": "TRF Deleted Successfully"}
 
 
-@app.post("/upload-file/{trf_number}/{folder_name}")
+@app.post("/api/upload-file/{trf_number}/{folder_name}")
 def legacy_upload_file(trf_number: str, folder_name: str, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer", "Manager"]))):
     check_trf_access(db, current_user, trf_number)
     saved = file_service.save_file(db, trf_number, folder_name, file, current_user=current_user)
     return {"message": "File Uploaded Successfully", "file_name": saved}
 
 
-@app.get("/files/{trf_number}/{folder_name}")
+@app.get("/api/files/{trf_number}/{folder_name}")
 def legacy_get_files(trf_number: str, folder_name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     check_trf_access(db, current_user, trf_number)
     files = file_service.list_files(db, trf_number, folder_name)
     return {"trf_number": trf_number, "folder_name": folder_name, "files": files}
 
 
-@app.delete("/delete-file/{trf_number}/{folder_name}/{file_name}")
+@app.delete("/api/delete-file/{trf_number}/{folder_name}/{file_name}")
 def legacy_delete_file(trf_number: str, folder_name: str, file_name: str, db: Session = Depends(get_db), current_user: User = Depends(RoleChecker(["Admin", "Engineer", "Manager"]))):
     check_trf_access(db, current_user, trf_number)
     file_service.remove_file(db, trf_number, folder_name, file_name, current_user=current_user)
     return {"message": "File Deleted Successfully"}
 
 
-@app.get("/download-file/{trf_number}/{folder_name}/{file_name}")
+@app.get("/api/download-file/{trf_number}/{folder_name}/{file_name}")
 def legacy_download_file(trf_number: str, folder_name: str, file_name: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     check_trf_access(db, current_user, trf_number)
     path = file_service.get_file_path(db, trf_number, folder_name, file_name)
     return FileResponse(path=path, filename=file_name)
 
 
-@app.post("/login")
+@app.post("/api/login")
 def legacy_login(username: str, password: str, db: Session = Depends(get_db)):
     user = user_service.authenticate_user(db, username, password)
     from backend.services import audit_service
@@ -166,7 +169,7 @@ def legacy_login(username: str, password: str, db: Session = Depends(get_db)):
     return {"message": "Login Successful", "username": user.username, "role": user.role}
 
 
-@app.post("/register")
+@app.post("/api/register")
 def legacy_register(username: str, password: str, db: Session = Depends(get_db)):
     from backend.schemas.user_schema import UserCreate
     user_service.register_user(db, UserCreate(username=username, password=password))
@@ -182,6 +185,11 @@ if os.path.isdir(_DIST_DIR):
     # Serve static assets (JS, CSS, images, etc.)
     app.mount("/assets", StaticFiles(directory=os.path.join(_DIST_DIR, "assets")), name="assets")
 
+    @app.get("/", include_in_schema=False)
+    async def serve_spa_root():
+        """Serve index.html at the root URL /"""
+        return FileResponse(os.path.join(_DIST_DIR, "index.html"))
+
     @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
         """
@@ -189,6 +197,12 @@ if os.path.isdir(_DIST_DIR):
         React Router handles client-side navigation correctly.
         Known static files are served directly; everything else → index.html.
         """
+        # Do not intercept backend paths (api, docs, redoc, openapi.json)
+        # return 404 for missing routes under these prefixes
+        path_segments = full_path.split("/")
+        if path_segments and path_segments[0] in ("api", "docs", "redoc", "openapi.json"):
+            raise StarletteHTTPException(status_code=404, detail="Not Found")
+
         # Check if it's a real file in dist
         target = os.path.join(_DIST_DIR, full_path)
         if os.path.isfile(target):

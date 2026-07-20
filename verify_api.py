@@ -3,7 +3,7 @@ import sys
 sys.path.insert(0, ".")
 import requests
 
-BASE = "http://127.0.0.1:8000"
+BASE = "http://127.0.0.1:8000/api"
 results = []
 
 def check(label, method, url, **kwargs):
@@ -22,7 +22,7 @@ def check(label, method, url, **kwargs):
 print("\n=== Backend API Health Check ===\n")
 
 # Core
-check("GET  /",                     "get",  "/")
+check("GET  /health",              "get",  "/health")
 check("GET  /all-trfs",             "get",  "/all-trfs")
 check("GET  /dashboard-stats",      "get",  "/dashboard-stats")
 check("GET  /search-trf/TRF-2026-003", "get", "/search-trf/TRF-2026-003")
@@ -40,7 +40,7 @@ check("GET  /trfs/TRF-2026-003",    "get",  "/trfs/TRF-2026-003")
 
 # Auth endpoints
 check("POST /users/login (valid)",  "post", "/users/login",
-      json={"username": "admin", "password": "admin123"})
+      json={"username": "admin", "password": "Admin@123"})
 check("POST /users/login (bad pw)", "post", "/users/login",
       json={"username": "admin", "password": "wrongpassword"})
 

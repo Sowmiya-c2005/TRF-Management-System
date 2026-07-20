@@ -10,9 +10,7 @@
  *   DELETE /delete-file/{trf}/{folder}/{name} → delete
  *   GET    /download-file/{trf}/{folder}/{name} → download (binary)
  */
-import API from "./api";
-
-const BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+import API, { BASE_API_URL as BASE } from "./api";
 
 /**
  * List files in a TRF subfolder.

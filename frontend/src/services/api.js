@@ -1,7 +1,25 @@
 import axios from "axios";
 
+// Determine the base API URL dynamically based on environment
+let rawBaseUrl = import.meta.env.VITE_API_URL;
+if (!rawBaseUrl) {
+  // If no environment variable is provided, check if we are in production on Render/same host
+  rawBaseUrl = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1")
+    ? "http://127.0.0.1:8000/api"
+    : "/api";
+} else {
+  // Ensure the base URL ends with /api if it doesn't already
+  if (!rawBaseUrl.endsWith("/api") && !rawBaseUrl.endsWith("/api/")) {
+    // Remove trailing slash if present before appending
+    const normalized = rawBaseUrl.endsWith("/") ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+    rawBaseUrl = `${normalized}/api`;
+  }
+}
+
+export const BASE_API_URL = rawBaseUrl;
+
 const API = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:8000",
+  baseURL: BASE_API_URL,
   timeout: 15000,
 });
 

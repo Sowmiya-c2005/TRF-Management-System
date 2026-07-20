@@ -2,7 +2,7 @@
 import sys, os, shutil, requests
 sys.path.insert(0, ".")
 
-BASE  = "http://127.0.0.1:8000"
+BASE  = "http://127.0.0.1:8000/api"
 CREDS = {"username": "admin", "password": "Admin@123"}
 
 # 1. Login

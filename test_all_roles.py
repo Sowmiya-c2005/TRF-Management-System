@@ -2,7 +2,7 @@
 import sys; sys.path.insert(0, ".")
 import requests
 
-BASE = "http://127.0.0.1:8000"
+BASE = "http://127.0.0.1:8000/api"
 
 CREDS = [
     ("admin",    "Admin@123",    "Admin"),
@@ -21,10 +21,10 @@ for username, password, expected_role in CREDS:
         role = data.get("role", "?")
         token_ok = bool(data.get("token"))
         ok = role == expected_role and token_ok
-        print(f"  {'OK  ' if ok else 'FAIL'} [{r.status_code}]  {username:12} → role={role:10}  token={'YES' if token_ok else 'NO '}")
+        print(f"  {'OK  ' if ok else 'FAIL'} [{r.status_code}]  {username:12} -> role={role:10}  token={'YES' if token_ok else 'NO '}")
         if not ok: all_ok = False
     else:
-        print(f"  FAIL [{r.status_code}]  {username:12} → {r.text[:80]}")
+        print(f"  FAIL [{r.status_code}]  {username:12} -> {r.text[:80]}")
         all_ok = False
 
 print()
