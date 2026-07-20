@@ -1,7 +1,7 @@
 fastapi>=0.115.6
 uvicorn[standard]>=0.32.1
 sqlalchemy>=2.0.36
-psycopg2-binary
+psycopg2-binary>=2.9.9
 python-dotenv>=1.0.1
 python-multipart>=0.0.20
 pydantic>=2.10.3
@@ -9,4 +9,5 @@ pyjwt>=2.8.0
 bcrypt>=4.1.2
 requests>=2.32.0
 qrcode[pil]>=8.0
-pillow
+pillow>=10.0.0
+aiofiles>=23.2.1

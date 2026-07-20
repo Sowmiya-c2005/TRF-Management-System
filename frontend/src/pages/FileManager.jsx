@@ -126,11 +126,15 @@ export default function FileManager() {
   };
 
   const filtered = search.trim()
-    ? files.filter(f => (f.filename || f).toLowerCase().includes(search.toLowerCase()))
+    ? files.filter(f => fname(f).toLowerCase().includes(search.toLowerCase()))
     : files;
 
-  // Helper to get filename string from a file object or string
-  const fname = (f) => (typeof f === "string" ? f : f.filename || "");
+  // Helper to get filename string — never returns null/undefined
+  const fname = (f) => {
+    if (!f) return "";
+    if (typeof f === "string") return f;
+    return f.filename || f.name || f.file_name || "";
+  };
   const fsize = (f) => {
     if (typeof f === "string" || !f.size_bytes) return null;
     const b = f.size_bytes;

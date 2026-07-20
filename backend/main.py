@@ -1,10 +1,14 @@
 """
 TRF Management System — FastAPI entry point.
+Production mode: serves React SPA from frontend/dist via StaticFiles.
 Run with:  uvicorn backend.main:app --reload
+           python app.py
 """
 from fastapi import FastAPI, Depends, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 import os
@@ -31,12 +35,15 @@ app = FastAPI(
 # ── Exception Handlers ────────────────────────────────────────────────────────
 register_exception_handlers(app)
 
-# ── CORS ──────────────────────────────────────────────────────────────────────
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+# ── CORS — works for both local dev and Render production ────────────────────
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+_raw_origins = [o.strip() for o in _raw_origins if o.strip()]
+_wildcard    = "*" in _raw_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"] if _wildcard else _raw_origins,
+    allow_credentials=not _wildcard,   # credentials not allowed with wildcard
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -165,3 +172,30 @@ def legacy_register(username: str, password: str, db: Session = Depends(get_db))
     user_service.register_user(db, UserCreate(username=username, password=password))
     return {"message": "User Created Successfully"}
 
+
+# ── Serve React SPA (production) ──────────────────────────────────────────────
+# Mount the built frontend AFTER all API routes so API routes take priority.
+# Supports React Router SPA fallback: any unknown path returns index.html.
+_DIST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
+
+if os.path.isdir(_DIST_DIR):
+    # Serve static assets (JS, CSS, images, etc.)
+    app.mount("/assets", StaticFiles(directory=os.path.join(_DIST_DIR, "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        """
+        SPA fallback — return index.html for any unknown route so
+        React Router handles client-side navigation correctly.
+        Known static files are served directly; everything else → index.html.
+        """
+        # Check if it's a real file in dist
+        target = os.path.join(_DIST_DIR, full_path)
+        if os.path.isfile(target):
+            return FileResponse(target)
+        # Fallback to index.html for all SPA routes
+        return FileResponse(os.path.join(_DIST_DIR, "index.html"))
+
+    logger.info(f"React SPA served from: {_DIST_DIR}")
+else:
+    logger.info("frontend/dist not found — running in API-only mode (run `npm run build` to enable SPA serving)")
