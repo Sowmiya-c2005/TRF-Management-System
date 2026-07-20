@@ -7,8 +7,15 @@ import bcrypt
 from backend.database.database import SessionLocal
 from backend.models.user_model import User
 
+from dotenv import load_dotenv
+import os
+load_dotenv()
+
+admin_email = os.getenv("SMTP_USER", "admin@trf.com")
+admin_password = os.getenv("SMTP_PASSWORD", "Admin@123")
+
 DEMO_USERS = [
-    {"username": "admin",    "password": "Admin@123",    "role": "Admin",    "email": "admin@trf.com",    "display_name": "Admin User"},
+    {"username": "admin",    "password": admin_password, "role": "Admin",    "email": admin_email, "display_name": "Admin User"},
     {"username": "engineer", "password": "Engineer@123", "role": "Engineer", "email": "engineer@trf.com", "display_name": "Site Engineer"},
     {"username": "manager",  "password": "Manager@123",  "role": "Manager",  "email": "manager@trf.com",  "display_name": "Project Manager"},
     {"username": "viewer",   "password": "Viewer@123",   "role": "Viewer",   "email": "viewer@trf.com",   "display_name": "Viewer User"},

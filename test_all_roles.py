@@ -2,10 +2,14 @@
 import sys; sys.path.insert(0, ".")
 import requests
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 BASE = "http://127.0.0.1:8000/api"
 
 CREDS = [
-    ("admin",    "Admin@123",    "Admin"),
+    ("admin",    os.getenv("SMTP_PASSWORD", "Admin@123"), "Admin"),
     ("engineer", "Engineer@123", "Engineer"),
     ("manager",  "Manager@123",  "Manager"),
     ("viewer",   "Viewer@123",   "Viewer"),
