@@ -1,15 +1,17 @@
-"""Test login for all 4 roles. Run: python test_all_roles.py"""
+"""
+Test login for all 4 roles.
+Run: python test_all_roles.py
+
+NOTE: Login passwords are application passwords, independent from SMTP credentials.
+"""
 import sys; sys.path.insert(0, ".")
 import requests
 
-import os
-from dotenv import load_dotenv
-load_dotenv()
-
 BASE = "http://127.0.0.1:8000/api"
 
+# Application login credentials — completely separate from SMTP / Gmail credentials
 CREDS = [
-    ("admin",    os.getenv("SMTP_PASSWORD", "Admin@123"), "Admin"),
+    ("admin",    "Admin@123",    "Admin"),
     ("engineer", "Engineer@123", "Engineer"),
     ("manager",  "Manager@123",  "Manager"),
     ("viewer",   "Viewer@123",   "Viewer"),
@@ -32,4 +34,4 @@ for username, password, expected_role in CREDS:
         all_ok = False
 
 print()
-print("All roles working!" if all_ok else "Some roles failed — check above.")
+print("All roles working!" if all_ok else "Some roles failed -- check above.")
