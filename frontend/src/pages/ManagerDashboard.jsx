@@ -126,58 +126,68 @@ const IllusProjects = () => (
   </Box>
 );
 
-function StatCard({ icon, value, title, subtitle, gradient, rgb, onClick, isDark, illus }) {
+function StatCard({ icon, value, title, subtitle, gradient, rgb, onClick, isDark }) {
   const [hov, setHov] = useState(false);
   const gc = (a) => `rgba(${rgb},${a})`;
 
   return (
     <motion.div
       variants={up}
-      whileHover={{ y:-8, scale:1.03 }}
-      whileTap={{ scale:0.97 }}
-      onHoverStart={()=>setHov(true)}
-      onHoverEnd={()=>setHov(false)}
+      whileHover={{ y: -6, scale: 1.025 }}
+      whileTap={{ scale: 0.975 }}
+      onHoverStart={() => setHov(true)}
+      onHoverEnd={() => setHov(false)}
       onClick={onClick}
-      style={{ cursor:"pointer", height:"100%", position:"relative" }}
+      style={{ cursor: "pointer", height: "100%", position: "relative" }}
     >
       <Box sx={{
-        position:"absolute",inset:0,borderRadius:"20px",
-        transform:"translate(5px,8px) scale(0.98)",
-        background:gc("0.18"),filter:"blur(2px) brightness(0.45)",zIndex:-1,
+        position: "absolute", inset: 0, borderRadius: "18px",
+        transform: "translate(4px,6px) scale(0.98)",
+        background: gc("0.20"), filter: "blur(3px) brightness(0.40)", zIndex: -1,
       }}/>
-
       <Box sx={{
-        borderRadius:"20px",overflow:"hidden",height:"100%",
-        display:"flex",flexDirection:"column",
-        background:"linear-gradient(160deg,rgba(14,18,42,0.97) 0%,rgba(8,10,24,0.95) 100%)",
-        border:`1.5px solid ${hov ? gc("0.45") : gc("0.18")}`,
-        backdropFilter:"blur(28px)",WebkitBackdropFilter:"blur(28px)",
+        borderRadius: "18px", overflow: "hidden", height: "100%",
+        display: "flex", flexDirection: "column",
+        background: isDark
+          ? "linear-gradient(158deg,rgba(15,19,45,0.97) 0%,rgba(8,11,26,0.95) 100%)"
+          : "linear-gradient(158deg,rgba(255,255,255,0.96) 0%,rgba(244,247,255,0.92) 100%)",
+        border: `1.5px solid ${hov ? gc("0.50") : gc("0.20")}`,
+        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
         boxShadow: hov
-          ? `0 4px 8px rgba(0,0,0,0.72),0 16px 40px rgba(0,0,0,0.58),0 32px 64px rgba(0,0,0,0.42),0 0 80px ${gc("0.25")},inset 0 1px 0 rgba(255,255,255,0.11)`
-          : `0 2px 6px rgba(0,0,0,0.70),0 10px 28px rgba(0,0,0,0.55),0 24px 48px rgba(0,0,0,0.40),inset 0 1px 0 rgba(255,255,255,0.07)`,
-        transition:"border .28s,box-shadow .28s",
+          ? `0 8px 32px rgba(0,0,0,0.55), 0 0 60px ${gc("0.20")}, inset 0 1px 0 rgba(255,255,255,0.12)`
+          : `0 2px 8px rgba(0,0,0,0.50), 0 10px 30px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.08)`,
+        transition: "border .25s, box-shadow .25s",
       }}>
-        <Box sx={{
-          height:140,position:"relative",overflow:"hidden",flexShrink:0,
-          background:`linear-gradient(145deg,${gc("0.22")} 0%,rgba(5,8,20,0.90) 100%)`,
-        }}>
-          <Box sx={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{illus}</Box>
-          <Box sx={{position:"absolute",bottom:0,left:0,right:0,height:40,background:"linear-gradient(0deg,rgba(8,10,24,0.95) 0%,transparent 100%)"}}/>
-          <Box sx={{position:"absolute",top:0,left:0,right:0,height:"3px",background:gradient,boxShadow:`0 0 16px ${gc("0.65")}`}}/>
-        </Box>
-
-        <Box sx={{p:"16px 18px 18px",flex:1,display:"flex",flexDirection:"column",gap:.5}}>
+        <Box sx={{ height: 3, background: gradient, boxShadow: `0 0 14px ${gc("0.60")}` }}/>
+        <Box sx={{ p: "20px 22px 22px", flex: 1, display: "flex", flexDirection: "column", gap: 0 }}>
+          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", mb: 2 }}>
+            <Box sx={{
+              width: 48, height: 48, borderRadius: "14px",
+              background: gc("0.15"), border: `1.5px solid ${gc("0.30")}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: `0 0 18px ${gc("0.20")}`,
+              color: hov ? `rgba(${rgb},1)` : `rgba(${rgb},0.85)`,
+              transition: "color .25s",
+            }}>{icon}</Box>
+            <Box sx={{
+              px: 1.2, py: 0.35, borderRadius: "6px",
+              background: gc("0.12"), border: `1px solid ${gc("0.25")}`,
+              fontSize: "0.60rem", fontWeight: 800, letterSpacing: 0.8,
+              color: `rgba(${rgb},0.90)`, textTransform: "uppercase",
+            }}>LIVE</Box>
+          </Box>
           <Typography sx={{
-            fontSize:"2rem",fontWeight:900,lineHeight:1,
-            fontVariantNumeric:"tabular-nums",
-            background:gradient,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
-            filter:`drop-shadow(0 0 14px ${gc("0.40")})`,
-          }}>
-            <AnimNum val={value}/>
-          </Typography>
-          <Typography sx={{fontSize:"0.85rem",fontWeight:700,color:"#e2e8f0"}}>{title}</Typography>
-          <Typography sx={{fontSize:"0.72rem",color:"#475569"}}>{subtitle}</Typography>
+            fontSize: "2.2rem", fontWeight: 900, lineHeight: 1.05,
+            fontVariantNumeric: "tabular-nums", letterSpacing: -0.5,
+            background: gradient,
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text",
+            filter: `drop-shadow(0 0 12px ${gc("0.35")})`,
+            mb: 0.5,
+          }}><AnimNum val={value}/></Typography>
+          <Typography sx={{ fontSize: "0.87rem", fontWeight: 700, lineHeight: 1.3, color: isDark ? "#e2e8f0" : "#1e293b", mb: 0.4 }}>{title}</Typography>
+          <Typography sx={{ fontSize: "0.70rem", fontWeight: 500, color: isDark ? "#4b5577" : "#94a3b8" }}>{subtitle}</Typography>
         </Box>
+        <Box sx={{ height: 2, background: gradient, opacity: hov ? 0.55 : 0.18, transition: "opacity .25s" }}/>
       </Box>
     </motion.div>
   );
@@ -291,18 +301,18 @@ export default function ManagerDashboard() {
   }, []);
 
   const kpis = [
-    { icon:<FolderSpecialRoundedIcon sx={{fontSize:26}}/>, illus:<IllusTRF/>,
-      value:loading?"…":stats?.assigned_projects??0, title:"Assigned TRFs", subtitle:"Projects under your oversight",
-      gradient:"linear-gradient(135deg,#6366f1,#818cf8)", rgb:"99,102,241", path:"/all" },
-    { icon:<WorkRoundedIcon sx={{fontSize:26}}/>, illus:<IllusProjects/>,
-      value:loading?"…":stats?.active_projects??0, title:"Active Projects", subtitle:"In-progress operations",
-      gradient:"linear-gradient(135deg,#06b6d4,#22d3ee)", rgb:"6,182,212", path:"/all" },
-    { icon:<AssessmentRoundedIcon sx={{fontSize:26}}/>, illus:<IllusProjects/>,
-      value:loading?"…":stats?.pending_reviews??0, title:"Pending Reviews", subtitle:"Needs your attention",
-      gradient:"linear-gradient(135deg,#10b981,#34d399)", rgb:"16,185,129", path:"/all" },
-    { icon:<StorageRoundedIcon sx={{fontSize:26}}/>, illus:<IllusProjects/>,
-      value:loading?"…":stats?.completed_projects??0, title:"Completed", subtitle:"Finished tasks",
-      gradient:"linear-gradient(135deg,#f59e0b,#fbbf24)", rgb:"245,158,11", path:"/all" },
+    { icon: <FolderSpecialRoundedIcon sx={{ fontSize: 24 }}/>,
+      value: loading ? "…" : stats?.assigned_projects ?? 0, title: "Assigned TRFs", subtitle: "Projects under your oversight",
+      gradient: "linear-gradient(135deg,#6366f1,#818cf8)", rgb: "99,102,241", path: "/all" },
+    { icon: <WorkRoundedIcon sx={{ fontSize: 24 }}/>,
+      value: loading ? "…" : stats?.active_projects ?? 0, title: "Active Projects", subtitle: "In-progress operations",
+      gradient: "linear-gradient(135deg,#06b6d4,#22d3ee)", rgb: "6,182,212", path: "/all" },
+    { icon: <AssessmentRoundedIcon sx={{ fontSize: 24 }}/>,
+      value: loading ? "…" : stats?.pending_reviews ?? 0, title: "Pending Reviews", subtitle: "Needs your attention",
+      gradient: "linear-gradient(135deg,#10b981,#34d399)", rgb: "16,185,129", path: "/all" },
+    { icon: <StorageRoundedIcon sx={{ fontSize: 24 }}/>,
+      value: loading ? "…" : stats?.completed_projects ?? 0, title: "Completed", subtitle: "Finished tasks",
+      gradient: "linear-gradient(135deg,#f59e0b,#fbbf24)", rgb: "245,158,11", path: "/all" },
   ];
 
   const quickActions = [
@@ -398,10 +408,12 @@ export default function ManagerDashboard() {
       </motion.div>
 
       {/* ── KPI Cards ── */}
-      <Grid container spacing={2.5} sx={{mb:3.5}} alignItems="stretch">
-        {kpis.map((k,i)=>(
-          <Grid item xs={12} sm={6} lg={3} key={i} sx={{ display: "flex" }}>
-            <StatCard {...k} isDark={isDark} onClick={()=>navigate(k.path)}/>
+      <Grid container spacing={2.5} sx={{ mb: 3.5 }} alignItems="stretch">
+        {kpis.map((k, i) => (
+          <Grid item xs={12} sm={6} md={3} key={i} sx={{ display: "flex" }}>
+            <Box sx={{ width: "100%", minHeight: 180 }}>
+              <StatCard {...k} isDark={isDark} onClick={() => navigate(k.path)}/>
+            </Box>
           </Grid>
         ))}
       </Grid>
