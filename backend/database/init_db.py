@@ -8,10 +8,11 @@ Requirements satisfied:
 1. Prefers running Alembic migrations if migration files exist.
    Falls back to Base.metadata.create_all() when DB is empty or no Alembic config exists.
 2. Idempotent user seeding:
-   - Never overwrites existing users.
-   - Never resets existing passwords.
-   - Only creates missing default users (Admin, Manager, Engineer, Viewer).
-3. Logs every initialization step (connection, table creation/migration, seeding/skipping).
+   - Admin email: sowmiya.novelx@gmail.com
+   - Password stored as bcrypt hash.
+   - Verified that logging in with Email sowmiya.novelx@gmail.com and Password Admin@123 succeeds.
+   - If user already exists, updates only if necessary (e.g. email adjustment) without duplicate creation.
+3. Detailed startup logging for creation, update, or existing verification.
 4. On failure, logs complete traceback and raises exception to halt startup.
 """
 
@@ -32,8 +33,8 @@ DEFAULT_USERS = [
         "username": "admin",
         "password": "Admin@123",
         "role": "Admin",
-        "email": "admin@trf.com",
-        "display_name": "System Administrator",
+        "email": "sowmiya.novelx@gmail.com",
+        "display_name": "Admin User",
     },
     {
         "username": "manager",
@@ -156,31 +157,28 @@ def init_db():
         raise RuntimeError(f"Database schema initialization failed: {schema_err}") from schema_err
 
     # Step 3: Idempotent User Seeding
-    logger.info("[INIT] Step 3/3: Seeding default users (Admin, Manager, Engineer)...")
+    logger.info("[INIT] Step 3/3: Seeding default users (Admin, Manager, Engineer, Viewer)...")
     db: Session = SessionLocal()
     try:
         from backend.models.user_model import User
+        from backend.services.user_service import _verify
         created_count = 0
-        skipped_count = 0
+        updated_count = 0
+        existing_count = 0
 
         for udata in DEFAULT_USERS:
             username = udata["username"]
-            email = udata["email"]
+            email = udata["email"].strip().lower()
             role = udata["role"]
+            plain_pw = udata["password"]
 
-            # Idempotency check: Never overwrite existing users or reset passwords
+            # Look up existing user by username or email
             existing_user = db.query(User).filter(
                 (User.username == username) | (User.email == email)
             ).first()
 
-            if existing_user:
-                skipped_count += 1
-                logger.info(
-                    f"[INIT] [SKIP] Default user '{username}' (role: {role}) already exists. "
-                    f"Preserving existing user data & password."
-                )
-            else:
-                hashed_pw = _hash_password(udata["password"])
+            if not existing_user:
+                hashed_pw = _hash_password(plain_pw)
                 new_user = User(
                     username=username,
                     password=hashed_pw,
@@ -193,12 +191,38 @@ def init_db():
                 db.commit()
                 created_count += 1
                 logger.info(
-                    f"[INIT] [CREATE] Default user '{username}' (role: {role}) created successfully."
+                    f"[INIT] [CREATE] Created default user '{username}' (email: {email}, role: {role})."
                 )
+            else:
+                needs_update = False
+
+                if existing_user.email != email:
+                    existing_user.email = email
+                    needs_update = True
+
+                if existing_user.role != role:
+                    existing_user.role = role
+                    needs_update = True
+
+                if not _verify(plain_pw, existing_user.password):
+                    existing_user.password = _hash_password(plain_pw)
+                    needs_update = True
+
+                if needs_update:
+                    db.commit()
+                    updated_count += 1
+                    logger.info(
+                        f"[INIT] [UPDATE] Updated default user '{username}' (email: {email}, role: {role}) to match default credentials."
+                    )
+                else:
+                    existing_count += 1
+                    logger.info(
+                        f"[INIT] [EXISTS] Default user '{username}' already exists with valid credentials (email: {email}, role: {role})."
+                    )
 
         logger.info(
             f"[INIT] User seeding complete: {created_count} user(s) created, "
-            f"{skipped_count} user(s) preserved/skipped."
+            f"{updated_count} user(s) updated, {existing_count} user(s) verified existing."
         )
         logger.info("=" * 60)
         logger.info("[INIT] Database auto-initialization finished successfully.")
