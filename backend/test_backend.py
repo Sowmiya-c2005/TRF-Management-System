@@ -32,7 +32,7 @@ def run_tests():
         # 1. Clean up test data if left over from previous runs
         print("Cleaning up old test data...")
         test_username = "test_engineer"
-        test_trf_num = "TRF-TEST-2026"
+        test_trf_num = "TRF-2026-999"
         
         trf = db.query(TRFRecord).filter(TRFRecord.trf_number == test_trf_num).first()
         if trf:
@@ -44,7 +44,7 @@ def run_tests():
 
         # 2. Test User Registration
         print("Testing User Registration...")
-        user_payload = UserCreate(username=test_username, password="securepassword123")
+        user_payload = UserCreate(username=test_username, password="securepassword123", email="test_engineer@trf.com", display_name="Test Engineer")
         user = user_service.register_user(db, user_payload)
         assert user.username == test_username
         assert user.role == "Engineer"  # Second user (since admin is already there)
@@ -78,8 +78,9 @@ def run_tests():
             assert std_folder in folder_names
 
         # Verify physical directories
+        uploads_root = os.getenv("UPLOADS_ROOT", "uploads")
         for std_folder in trf_service.TRF_SUBFOLDERS:
-            physical_path = os.path.join(trf_service.UPLOADS_ROOT, test_trf_num, std_folder)
+            physical_path = os.path.join(uploads_root, test_trf_num, std_folder)
             assert os.path.exists(physical_path)
         print(" -> TRF CRUD and Directory structures created successfully")
 
@@ -115,7 +116,7 @@ def run_tests():
         # 7. Test File Listing
         print("Testing file listing...")
         files = file_service.list_files(db, test_trf_num, "Reports")
-        assert "test_report.pdf" in files
+        assert any(f["filename"] == "test_report.pdf" for f in files)
         print(" -> File listing matches database records")
 
         # 8. Test Audit Logs

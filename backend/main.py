@@ -26,6 +26,24 @@ from backend.middleware.exception_handlers import register_exception_handlers
 from backend.schemas.trf_schema import TRFCreate, TRFResponse
 from backend.services import trf_service, file_service, user_service
 
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("FastAPI starting up... Initializing database and default users...")
+    try:
+        from backend.database.init_db import init_db
+        init_db()
+        logger.info("Database initialization completed successfully.")
+    except Exception as exc:
+        logger.critical(f"FATAL: Database initialization failed on startup: {exc}", exc_info=True)
+        # Raise exception to prevent application from running with uninitialized/corrupted DB
+        raise RuntimeError(f"Application startup aborted due to DB initialization failure: {exc}") from exc
+    yield
+    logger.info("FastAPI application shutting down...")
+
+
 app = FastAPI(
     title="TRF Management System",
     description="Document & Record Tracking API (SOLID Enterprise Edition)",
@@ -33,6 +51,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/api/openapi.json",
+    lifespan=lifespan,
 )
 
 # ── Exception Handlers ────────────────────────────────────────────────────────

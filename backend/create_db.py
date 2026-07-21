@@ -2,16 +2,11 @@
 Run this once to create all database tables:
   python -m backend.create_db
 """
-from backend.database.database import engine, Base
-
-# Import all models to register them with Base before calling create_all
-import backend.models  # noqa: F401
+from backend.database.init_db import init_db
 
 
 def main():
-    print("Creating all normalized database tables...")
-    Base.metadata.create_all(bind=engine)
-    print("SUCCESS: All tables created successfully.")
+    init_db()
 
 
 if __name__ == "__main__":
