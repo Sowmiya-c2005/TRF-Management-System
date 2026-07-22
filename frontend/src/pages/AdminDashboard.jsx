@@ -6,6 +6,7 @@ import { useApp } from "../context/AppContext";
 import { useGreeting } from "../hooks/useGreeting";
 import { getAllTRFs } from "../services/trfService";
 import API from "../services/api";
+import PaginationBar from "../components/PaginationBar";
 
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
@@ -490,6 +491,8 @@ export default function AdminDashboard() {
   const [selectedTrf, setSelectedTrf] = useState(null);
   const [trfDetail,   setTrfDetail]   = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const headingColor  = isDark ? "#f1f5f9" : "#0f172a";
   const subColor      = isDark ? "#64748b"  : "#94a3b8";
@@ -610,10 +613,10 @@ export default function AdminDashboard() {
       gradient: "linear-gradient(135deg,#06b6d4,#22d3ee)", rgb: "6,182,212", path: "/users" },
     { icon: <WorkRoundedIcon sx={{ fontSize: 24 }}/>,
       value: loading ? "…" : stats?.active_managers ?? 0, title: "Active Managers", subtitle: "Assigned domains",
-      gradient: "linear-gradient(135deg,#10b981,#34d399)", rgb: "16,185,129", path: "/users" },
+      gradient: "linear-gradient(135deg,#10b981,#34d399)", rgb: "16,185,129", path: "/users?role=Manager&status=Active" },
     { icon: <BoltRoundedIcon sx={{ fontSize: 24 }}/>,
       value: loading ? "…" : stats?.active_engineers ?? 0, title: "Active Engineers", subtitle: "Engineering workforce",
-      gradient: "linear-gradient(135deg,#f59e0b,#fbbf24)", rgb: "245,158,11", path: "/users" },
+      gradient: "linear-gradient(135deg,#f59e0b,#fbbf24)", rgb: "245,158,11", path: "/users?role=Engineer&status=Active" },
     { icon: <WarningAmberRoundedIcon sx={{ fontSize: 24 }}/>,
       value: loading ? "…" : overdueCount, title: "Overdue Projects", subtitle: "Past due date",
       gradient: "linear-gradient(135deg,#ef4444,#f87171)", rgb: "239,68,68", path: "/all" },
@@ -795,7 +798,7 @@ export default function AdminDashboard() {
               ) : trfsList.length === 0 ? (
                 <Typography sx={{ color: subColor, fontSize: "0.82rem", textAlign: "center", py: 3 }}>No project assignments found</Typography>
               ) : (
-                trfsList.map((t, idx) => {
+                trfsList.slice((page - 1) * limit, page * limit).map((t, idx) => {
                   const managerName = getUserName(t.assigned_manager_id);
                   const engineers   = getEngineersNames(t.engineer_ids);
                   const sc          = STATUS_COLORS[t.status] || { bg: "rgba(148,163,184,0.1)", color: "#94a3b8" };
@@ -847,6 +850,15 @@ export default function AdminDashboard() {
               )}
             </Box>
           </Box>
+          <PaginationBar
+            page={page}
+            pages={Math.ceil(trfsList.length / limit) || 1}
+            total={trfsList.length}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(l) => { setLimit(l); setPage(1); }}
+            isDark={isDark}
+          />
         </GlassCard>
       </motion.div>
 

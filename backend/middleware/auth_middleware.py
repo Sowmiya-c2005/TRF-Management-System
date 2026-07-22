@@ -75,6 +75,8 @@ def get_current_user(
 
     user = user_repo.get_by_username(db, username)
     if user is None:
+        user = user_repo.get_by_email(db, username.lower())
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found."

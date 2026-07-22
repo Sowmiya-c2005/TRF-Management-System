@@ -28,6 +28,7 @@ import CloseRoundedIcon           from "@mui/icons-material/CloseRounded";
 
 import { listFiles, deleteFile, downloadFile } from "../services/fileService";
 import { useApp } from "../context/AppContext";
+import PaginationBar from "../components/PaginationBar";
 
 const FOLDERS = [
   { name: "Documents",         color: "#6366f1" },
@@ -58,6 +59,8 @@ export default function FileManager() {
   const [viewMode,    setViewMode]    = useState("grid"); // grid | list
   const [selected,    setSelected]    = useState(null);
   const [search,      setSearch]      = useState("");
+  const [page,        setPage]        = useState(1);
+  const [limit,       setLimit]       = useState(10);
 
   const cardBg = isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.88)";
   const border  = isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.2)";
@@ -323,7 +326,7 @@ export default function FileManager() {
               {/* Grid view */}
               {!loading && filtered.length > 0 && viewMode === "grid" && (
                 <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 1.5 }}>
-                  {filtered.map((f, i) => {
+                  {filtered.slice((page - 1) * limit, page * limit).map((f, i) => {
                     const n = fname(f);
                     return (
                     <motion.div key={n} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}>
@@ -369,14 +372,14 @@ export default function FileManager() {
               {/* List view */}
               {!loading && filtered.length > 0 && viewMode === "list" && (
                 <Box sx={{ borderRadius: "18px", background: cardBg, border: `1px solid ${border}`, overflow: "hidden" }}>
-                  {filtered.map((f, i) => {
+                  {filtered.slice((page - 1) * limit, page * limit).map((f, i) => {
                     const n = fname(f);
                     return (
                     <motion.div key={n} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.035 }}>
                       <Box sx={{
                         display: "flex", alignItems: "center", gap: 1.5,
                         px: 2.5, py: 1.75, cursor: "pointer",
-                        borderBottom: i < filtered.length - 1 ? `1px solid ${border}` : "none",
+                        borderBottom: i < Math.min(limit, filtered.length - (page - 1) * limit) - 1 ? `1px solid ${border}` : "none",
                         background: fname(selected) === n ? `${activeFolderColor}08` : "transparent",
                         transition: "background 0.15s",
                         "&:hover": { background: isDark ? "rgba(148,163,184,0.04)" : "rgba(99,102,241,0.02)" },
@@ -416,6 +419,16 @@ export default function FileManager() {
                   })}
                 </Box>
               )}
+
+              <PaginationBar
+                page={page}
+                pages={Math.ceil(filtered.length / limit) || 1}
+                total={filtered.length}
+                limit={limit}
+                onPageChange={setPage}
+                onLimitChange={(l) => { setLimit(l); setPage(1); }}
+                isDark={isDark}
+              />
             </motion.div>
 
             {/* File detail panel */}

@@ -128,29 +128,54 @@ def authenticate_user(db: Session, username: str, password: str) -> User:
     user = user_repo.get_by_email(db, username.strip().lower())
     if not user:
         user = user_repo.get_by_username(db, username)
-        
+
     if not user or not _verify(password, user.password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email/username or password.")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deactivated. Contact administrator.")
+
     # Update last login
     from datetime import datetime, timezone
     user.last_login_at = datetime.now(timezone.utc)
     user_repo.commit(db)
     logger.info(f"User '{user.username}' authenticated (role={user.role}).")
+
+    # Notify Admin on non-Admin login (fire-and-forget background email)
+    if user.role != "Admin":
+        try:
+            from backend.services.email_service import send_user_action_notification
+            send_user_action_notification(
+                db=db,
+                actor_name=user.username,
+                actor_role=user.role,
+                actor_email=user.email or "",
+                action="User Login",
+                details=f"{user.display_name or user.username} ({user.role}) logged into the TRF Portal.",
+                trf_number=None,
+            )
+        except Exception as e:
+            logger.warning(f"Login notification failed (non-critical): {e}")
+
     return user
 
 
 
 def update_profile(db: Session, user: User, payload) -> User:
-    """Update profile — validates email uniqueness, saves all fields."""
+    """Update profile — validates email uniqueness, saves all fields including role/is_active (Admin-only)."""
     from datetime import datetime, timezone
+    from backend.models.user_model import VALID_ROLES
 
     email_changed = False
 
     if hasattr(payload, "email") and payload.email is not None and payload.email.strip():
         new_email = payload.email.strip().lower()
         if new_email != (user.email or "").lower():
+            # Reject placeholder/invalid domains
+            if new_email.endswith("@trf.com") or new_email.endswith("@example.com"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Please use a real email address (Gmail, Outlook, or company email)."
+                )
             # Check uniqueness — exclude current user
             existing = db.query(User).filter(
                 User.email == new_email,
@@ -175,7 +200,21 @@ def update_profile(db: Session, user: User, payload) -> User:
     if hasattr(payload, "avatar_url") and payload.avatar_url is not None:
         user.avatar_url = payload.avatar_url
 
-    # updated_at — use setattr to avoid crash if column missing
+    # Admin-only: role update
+    if hasattr(payload, "role") and payload.role is not None:
+        new_role = payload.role.strip()
+        if new_role not in VALID_ROLES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid role '{new_role}'. Must be one of {VALID_ROLES}."
+            )
+        user.role = new_role
+
+    # Admin-only: activate/deactivate
+    if hasattr(payload, "is_active") and payload.is_active is not None:
+        user.is_active = payload.is_active
+
+    # updated_at
     try:
         user.updated_at = datetime.now(timezone.utc)
     except Exception:
@@ -211,6 +250,22 @@ def change_password(db: Session, user: User, current_pw: str, new_pw: str) -> No
     user.refresh_token = None
     user_repo.commit(db)
     logger.info(f"Password changed for user '{user.username}'.")
+
+    # Notify Admin on non-Admin password change
+    if user.role != "Admin":
+        try:
+            from backend.services.email_service import send_user_action_notification
+            send_user_action_notification(
+                db=db,
+                actor_name=user.username,
+                actor_role=user.role,
+                actor_email=user.email or "",
+                action="Password Changed",
+                details=f"{user.display_name or user.username} changed their account password.",
+                trf_number=None,
+            )
+        except Exception as e:
+            logger.warning(f"Password change notification failed (non-critical): {e}")
 
 
 def set_role(db: Session, user: User, new_role: str) -> User:
@@ -288,23 +343,65 @@ def reset_password(db: Session, token: str, new_password: str) -> None:
 
 
 def create_user_by_admin(db: Session, payload) -> User:
-    """Create a new user with specified role (Admin only)."""
+    """Create a new user with specified role (Admin only). Requires a real email address."""
     if user_repo.get_by_username(db, payload.username):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists.")
-    
+
     if payload.role not in VALID_ROLES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid role '{payload.role}'. Must be one of {VALID_ROLES}.")
-    
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role '{payload.role}'. Must be one of {VALID_ROLES}."
+        )
+
+    # Validate email: required, must be unique, must be a real address
+    email_clean = (payload.email or "").strip().lower()
+    if not email_clean or "@" not in email_clean:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid email address is required for every user."
+        )
+    if email_clean.endswith("@trf.com"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please use a real email address (Gmail, Outlook, or company email), not @trf.com."
+        )
+    existing_email = db.query(User).filter(User.email == email_clean).first()
+    if existing_email:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This email address is already in use by another account."
+        )
+
     new_user = User(
         username=payload.username,
         password=_hash(payload.password),
         role=payload.role,
-        email=payload.email,
+        email=email_clean,
         display_name=payload.display_name or payload.username,
         is_active=True
     )
     user_repo.create(db, new_user)
-    logger.info(f"Admin created user '{payload.username}' with role '{payload.role}'.")
+    logger.info(f"Admin created user '{payload.username}' with role '{payload.role}' and email '{email_clean}'.")
+
+    # Notify Admin that a new user was created
+    try:
+        from backend.services.email_service import send_user_action_notification
+        send_user_action_notification(
+            db=db,
+            actor_name="admin",
+            actor_role="Admin",
+            actor_email="",
+            action="New User Created",
+            details=(
+                f"Admin created a new user: {new_user.display_name or new_user.username} "
+                f"(Username: {new_user.username}, Email: {email_clean}, Role: {new_user.role})."
+            ),
+            trf_number=None,
+            notify_user_email=email_clean,  # Also send welcome email to new user
+        )
+    except Exception as e:
+        logger.warning(f"New user notification failed (non-critical): {e}")
+
     return new_user
 
 
@@ -317,12 +414,41 @@ def update_user_status(db: Session, user: User, is_active: bool) -> User:
     return user
 
 
-def reset_user_password(db: Session, user: User) -> str:
-    """Reset user password to a default value and return it."""
-    new_password = "TempPass123"  # Default temporary password
+def reset_user_password(db: Session, user: User, new_password: Optional[str] = None) -> str:
+    """Reset user password to a provided or auto-generated value and return it."""
+    import secrets
+    import string
+    if not new_password:
+        # Generate a secure random 12-character password
+        alphabet = string.ascii_letters + string.digits + "@#!"
+        new_password = "".join(secrets.choice(alphabet) for _ in range(12))
+    if len(new_password) < 6:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be at least 6 characters.")
     user.password = _hash(new_password)
     user.refresh_token = None  # Revoke all sessions
     user.updated_at = datetime.now(timezone.utc)
     user_repo.commit(db)
     logger.info(f"Password reset for user '{user.username}' by admin.")
+
+    # Notify user of their new password (if they have an email)
+    if user.email and user.role != "Admin":
+        try:
+            from backend.services.email_service import send_user_action_notification
+            send_user_action_notification(
+                db=db,
+                actor_name="admin",
+                actor_role="Admin",
+                actor_email="",
+                action="Password Reset by Admin",
+                details=(
+                    f"Your account password has been reset by an Administrator. "
+                    f"Your new temporary password is: {new_password}. "
+                    f"Please log in and change it immediately."
+                ),
+                trf_number=None,
+                notify_user_email=user.email,  # Send new password to user
+            )
+        except Exception as e:
+            logger.warning(f"Password reset notification failed (non-critical): {e}")
+
     return new_password

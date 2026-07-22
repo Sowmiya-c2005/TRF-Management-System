@@ -26,6 +26,7 @@ import OpenInNewRoundedIcon     from "@mui/icons-material/OpenInNewRounded";
 
 import API from "../services/api";
 import { useApp } from "../context/AppContext";
+import PaginationBar from "../components/PaginationBar";
 
 const FILTER_TABS = [
   { id: "all",         label: "All" },
@@ -64,20 +65,31 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
 
   const cardBg = isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.88)";
   const border  = isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.2)";
 
-  const fetchPage = useCallback(async (p, f) => {
+  const fetchPage = useCallback(async (p, f, l) => {
     setLoading(true);
     try {
       const typeParam = f === "all" ? "" : `&type=${f}`;
-      const res = await API.get(`/notifications/?page=${p}&limit=10${typeParam}`);
-      const data = res.data || [];
-      setNotifications(data);
-      setHasMore(data.length === 10);
+      const res = await API.get(`/notifications/?page=${p}&limit=${l}${typeParam}`);
+      if (res.data && Array.isArray(res.data.items)) {
+        setNotifications(res.data.items);
+        setTotal(res.data.total ?? res.data.items.length);
+        setPages(res.data.pages ?? 1);
+        setPage(res.data.page ?? 1);
+      } else {
+        const arr = Array.isArray(res.data) ? res.data : [];
+        setNotifications(arr);
+        setTotal(arr.length);
+        setPages(1);
+        setPage(1);
+      }
     } catch (err) {
       toast.error("Failed to load notifications");
     } finally {
@@ -86,8 +98,8 @@ export default function Notifications() {
   }, []);
 
   useEffect(() => {
-    fetchPage(page, activeFilter);
-  }, [page, activeFilter, fetchPage]);
+    fetchPage(page, activeFilter, limit);
+  }, [page, activeFilter, limit, fetchPage]);
 
   const handleFilterChange = (filterId) => {
     setActiveFilter(filterId);
@@ -327,31 +339,18 @@ export default function Notifications() {
       </Box>
 
       {/* Pagination Controls */}
-      {notifications.length > 0 && (
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", px: 1 }}>
-          <Button
-            variant="outlined" size="small"
-            disabled={page === 1}
-            onClick={() => setPage(prev => Math.max(1, prev - 1))}
-            startIcon={<ChevronLeftRoundedIcon />}
-            sx={{ borderRadius: "10px", fontWeight: 700 }}
-          >
-            Previous
-          </Button>
-          <Typography sx={{ fontSize: "0.78rem", fontWeight: 700, color: theme.palette.text.secondary }}>
-            Page {page}
-          </Typography>
-          <Button
-            variant="outlined" size="small"
-            disabled={!hasMore}
-            onClick={() => setPage(prev => prev + 1)}
-            endIcon={<ChevronRightRoundedIcon />}
-            sx={{ borderRadius: "10px", fontWeight: 700 }}
-          >
-            Next
-          </Button>
-        </Box>
-      )}
+      <PaginationBar
+        page={page}
+        pages={pages}
+        total={total}
+        limit={limit}
+        onPageChange={setPage}
+        onLimitChange={(l) => {
+          setLimit(l);
+          setPage(1);
+        }}
+        isDark={isDark}
+      />
     </Box>
   );
 }

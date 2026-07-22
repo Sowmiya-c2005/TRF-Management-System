@@ -20,10 +20,12 @@ class UserLogin(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    email:        Optional[str] = None
-    display_name: Optional[str] = None
-    phone:        Optional[str] = None
-    avatar_url:   Optional[str] = None
+    email:        Optional[str]  = None
+    display_name: Optional[str]  = None
+    phone:        Optional[str]  = None
+    avatar_url:   Optional[str]  = None
+    role:         Optional[str]  = None   # Admin-only: update user role
+    is_active:    Optional[bool] = None   # Admin-only: activate/deactivate
 
 
 class ChangePasswordRequest(BaseModel):

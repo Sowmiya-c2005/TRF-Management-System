@@ -1,6 +1,11 @@
 """
-Create one demo user per role.
+Create default demo users (Admin, Manager, Engineer — no Viewer).
 Run: python create_demo_users.py
+
+IMPORTANT — Email addresses:
+  - Admin:    sowmiya.novelx@gmail.com  (canonical, receives all notifications)
+  - Manager:  Replace with the real Manager's email via User Management after setup.
+  - Engineer: Replace with the real Engineer's email via User Management after setup.
 
 NOTE:
   - Login passwords are APPLICATION passwords, completely independent from SMTP credentials.
@@ -12,37 +17,31 @@ import bcrypt
 from backend.database.database import SessionLocal
 from backend.models.user_model import User
 
-# ── Application login credentials ────────────────────────────────────────────
+# ── Application login credentials ─────────────────────────────────────────────
 # These are the passwords users type in the login form.
-# SMTP credentials are completely separate and must NOT be used here.
+# Manager and Engineer emails use placeholder addresses — update them with real
+# email addresses through the User Management page.
 DEMO_USERS = [
     {
         "username":     "admin",
         "password":     "Admin@123",                  # Application login password
         "role":         "Admin",
-        "email":        "sowmiya.novelx@gmail.com",   # Real email for notifications
+        "email":        "sowmiya.novelx@gmail.com",   # Real email for Admin notifications
         "display_name": "Admin User",
-    },
-    {
-        "username":     "engineer",
-        "password":     "Engineer@123",
-        "role":         "Engineer",
-        "email":        "engineer@trf.com",
-        "display_name": "Site Engineer",
     },
     {
         "username":     "manager",
         "password":     "Manager@123",
         "role":         "Manager",
-        "email":        "manager@trf.com",
+        "email":        "manager@example.com",        # Replace with real Manager email via User Management
         "display_name": "Project Manager",
     },
     {
-        "username":     "viewer",
-        "password":     "Viewer@123",
-        "role":         "Viewer",
-        "email":        "viewer@trf.com",
-        "display_name": "Viewer User",
+        "username":     "engineer",
+        "password":     "Engineer@123",
+        "role":         "Engineer",
+        "email":        "engineer@example.com",       # Replace with real Engineer email via User Management
+        "display_name": "Site Engineer",
     },
 ]
 
@@ -75,6 +74,6 @@ db.commit()
 db.close()
 print(f"\nDone -- {created} created, {updated} updated.")
 print("\nAdmin login credentials:")
-print("  Username : admin")
 print("  Email    : sowmiya.novelx@gmail.com")
 print("  Password : Admin@123  (application login password, NOT the Gmail App Password)")
+print("\nIMPORTANT: Update Manager and Engineer emails with real addresses via User Management.")

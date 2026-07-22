@@ -22,6 +22,7 @@ import HistoryRoundedIcon      from "@mui/icons-material/HistoryRounded";
 import FileDownloadRoundedIcon from "@mui/icons-material/FileDownloadRounded";
 
 import API from "../services/api";
+import PaginationBar from "../components/PaginationBar";
 
 const ACTION_COLORS = {
   CREATE_TRF:     { bg: "rgba(99,102,241,0.12)",  color: "#818cf8" },
@@ -73,7 +74,10 @@ export default function AuditLog() {
   const [search,  setSearch]  = useState("");
   const [action,  setAction]  = useState("All");
   const [user,    setUser]    = useState("");
-  const [limit,   setLimit]   = useState(100);
+  const [page,    setPage]    = useState(1);
+  const [limit,   setLimit]   = useState(10);
+  const [total,   setTotal]   = useState(0);
+  const [pages,   setPages]   = useState(1);
 
   const cardBg = isDark ? "rgba(15,23,42,0.72)" : "rgba(255,255,255,0.88)";
   const border = isDark ? "rgba(148,163,184,0.1)" : "rgba(148,163,184,0.2)";
@@ -81,19 +85,30 @@ export default function AuditLog() {
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: String(limit) });
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (action !== "All") params.set("action", action);
       if (user.trim())       params.set("username", user.trim());
       if (search.trim())     params.set("search", search.trim());
 
       const res = await API.get(`/audits/?${params}`);
-      setLogs(Array.isArray(res.data) ? res.data : []);
+      if (res.data && Array.isArray(res.data.items)) {
+        setLogs(res.data.items);
+        setTotal(res.data.total ?? res.data.items.length);
+        setPages(res.data.pages ?? 1);
+        setPage(res.data.page ?? 1);
+      } else {
+        const arr = Array.isArray(res.data) ? res.data : [];
+        setLogs(arr);
+        setTotal(arr.length);
+        setPages(1);
+        setPage(1);
+      }
     } catch (e) {
       toast.error(e.message || "Failed to load audit logs");
     } finally {
       setLoading(false);
     }
-  }, [action, user, search, limit]);
+  }, [action, user, search, page, limit]);
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
@@ -253,6 +268,18 @@ export default function AuditLog() {
             );
           })}
         </Box>
+        <PaginationBar
+          page={page}
+          pages={pages}
+          total={total}
+          limit={limit}
+          onPageChange={setPage}
+          onLimitChange={(l) => {
+            setLimit(l);
+            setPage(1);
+          }}
+          isDark={isDark}
+        />
       </motion.div>
     </Box>
   );

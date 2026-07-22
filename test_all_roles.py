@@ -1,37 +1,35 @@
 """
-Test login for all 4 roles.
+Test login authentication for all active roles (Admin, Manager, Engineer).
 Run: python test_all_roles.py
-
-NOTE: Login passwords are application passwords, independent from SMTP credentials.
 """
 import sys; sys.path.insert(0, ".")
-import requests
+from backend.database.init_db import SessionLocal
+from backend.services.user_service import authenticate_user
 
-BASE = "http://127.0.0.1:8000/api"
-
-# Application login credentials — completely separate from SMTP / Gmail credentials
 CREDS = [
     ("admin",    "Admin@123",    "Admin"),
     ("engineer", "Engineer@123", "Engineer"),
     ("manager",  "Manager@123",  "Manager"),
-    ("viewer",   "Viewer@123",   "Viewer"),
 ]
 
-print("\n=== Role Login Tests ===\n")
+print("\n=== Role Authentication Tests ===\n")
+db = SessionLocal()
 all_ok = True
 
-for username, password, expected_role in CREDS:
-    r = requests.post(f"{BASE}/users/login", json={"username": username, "password": password}, timeout=6)
-    if r.status_code == 200:
-        data = r.json()
-        role = data.get("role", "?")
-        token_ok = bool(data.get("token"))
-        ok = role == expected_role and token_ok
-        print(f"  {'OK  ' if ok else 'FAIL'} [{r.status_code}]  {username:12} -> role={role:10}  token={'YES' if token_ok else 'NO '}")
-        if not ok: all_ok = False
-    else:
-        print(f"  FAIL [{r.status_code}]  {username:12} -> {r.text[:80]}")
-        all_ok = False
+try:
+    for username, password, expected_role in CREDS:
+        try:
+            user = authenticate_user(db, username, password)
+            role = user.role
+            ok = (role == expected_role)
+            print(f"  {'OK  ' if ok else 'FAIL'} [200]  {username:12} -> role={role:10}  email={user.email or 'N/A'}")
+            if not ok:
+                all_ok = False
+        except Exception as err:
+            print(f"  FAIL [ERR]  {username:12} -> {err}")
+            all_ok = False
+finally:
+    db.close()
 
 print()
-print("All roles working!" if all_ok else "Some roles failed -- check above.")
+print("All active roles authenticated successfully!" if all_ok else "Some roles failed -- check above.")

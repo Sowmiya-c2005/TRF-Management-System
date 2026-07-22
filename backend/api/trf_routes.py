@@ -102,10 +102,14 @@ def get_all_trfs(
     sort_order: Optional[str] = Query("desc", description="asc or desc"),
     page:       int           = Query(1,     ge=1,  description="Page number (1-based)"),
     per_page:   int           = Query(10,    ge=1, le=100, description="Records per page"),
+    limit:      Optional[int] = Query(None,  ge=1, le=100, description="Records per page (alias for per_page)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Return paginated TRF records with optional search, filter, and sort."""
+    if limit is not None:
+        per_page = limit
+
     from backend.services.assignment_service import get_user_assigned_trfs
     trfs = get_user_assigned_trfs(db, current_user.id, current_user.role)
 
@@ -148,6 +152,7 @@ def get_all_trfs(
         "page":     page,
         "pages":    pages,
         "per_page": per_page,
+        "limit":    per_page,
     }
 
 

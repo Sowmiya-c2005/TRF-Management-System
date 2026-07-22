@@ -66,35 +66,59 @@ async def notifications_websocket(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
-@router.get("/", response_model=list[NotificationResponse])
+@router.get("/", response_model=dict)
 def get_my_notifications(
     include_read: bool = True,
     page: int = 1,
     limit: int = 10,
     type: Optional[str] = None,
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Retrieve notifications for the currently logged-in user (paginated and filterable)."""
+    page = page if isinstance(page, int) else 1
+    limit = limit if isinstance(limit, int) else 10
+    type = type if isinstance(type, str) else None
+    search = search if isinstance(search, str) else None
+
     notifs = notification_service.get_user_notifications(db, current_user.id, include_read)
     
-    if type:
-        if type == "assignments":
+    if type and type.strip() and type.strip().lower() != "all":
+        t = type.strip().lower()
+        if t == "assignments":
             notifs = [n for n in notifs if n.type == "assignment"]
-        elif type == "trfs":
+        elif t == "trfs":
             notifs = [n for n in notifs if n.type in ("trf", "status", "approval", "rejection")]
-        elif type == "documents":
+        elif t == "documents":
             notifs = [n for n in notifs if n.type in ("document", "file")]
-        elif type == "system":
+        elif t == "system":
             notifs = [n for n in notifs if n.type not in ("assignment", "trf", "status", "approval", "rejection", "document", "file")]
         else:
-            notifs = [n for n in notifs if n.type == type]
+            notifs = [n for n in notifs if (n.type or "").lower() == t]
+
+    if search and search.strip():
+        q = search.strip().lower()
+        notifs = [
+            n for n in notifs
+            if q in (n.title or "").lower()
+            or q in (n.body or "").lower()
+        ]
             
     enriched = [_enrich_notification(db, n) for n in notifs]
     
-    start = (page - 1) * limit
-    end = start + limit
-    return enriched[start:end]
+    total = len(enriched)
+    pages = max(1, (total + limit - 1) // limit)
+    page_num = min(page, pages)
+    start = (page_num - 1) * limit
+    page_items = enriched[start : start + limit]
+
+    return {
+        "items": page_items,
+        "total": total,
+        "page": page_num,
+        "pages": pages,
+        "limit": limit
+    }
 
 
 @router.put("/read-all", response_model=MessageResponse)

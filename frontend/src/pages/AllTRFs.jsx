@@ -46,6 +46,7 @@ import { getAllTRFs, deleteTRF } from "../services/trfService";
 import { useApp }        from "../context/AppContext";
 import { usePermission } from "../hooks/usePermission";
 import QRCodeModal       from "../components/QRCodeModal";
+import PaginationBar     from "../components/PaginationBar";
 
 // ─── Status / Priority colours ───────────────────────────────────────────────
 const STATUS_COLORS = {
@@ -128,7 +129,7 @@ export default function AllTRFs() {
 
   // ── Pagination / filter / sort state ────────────────────────────────────────
   const [page,      setPage]      = useState(1);
-  const [perPage]                 = useState(15);
+  const [limit,     setLimit]     = useState(10);
   const [total,     setTotal]     = useState(0);
   const [pages,     setPages]     = useState(1);
   const [search,    setSearch]    = useState("");
@@ -156,7 +157,8 @@ export default function AllTRFs() {
     try {
       const params = {
         page:       overrides.page      ?? page,
-        per_page:   perPage,
+        per_page:   overrides.limit     ?? limit,
+        limit:      overrides.limit     ?? limit,
         search:     overrides.search    ?? search,
         status:     overrides.status    ?? status,
         priority:   overrides.priority  ?? priority,
@@ -183,9 +185,9 @@ export default function AllTRFs() {
     } finally {
       setLoading(false);
     }
-  }, [page, perPage, search, status, priority, sortBy, sortOrder]);
+  }, [page, limit, search, status, priority, sortBy, sortOrder]);
 
-  useEffect(() => { loadTRFs(); }, [page, status, priority, sortBy, sortOrder]);
+  useEffect(() => { loadTRFs(); }, [page, limit, status, priority, sortBy, sortOrder]);
 
   // Debounced search
   useEffect(() => {
@@ -516,23 +518,18 @@ export default function AllTRFs() {
       </motion.div>
 
       {/* ── Pagination ── */}
-      {!loading && pages > 1 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 3 }}>
-            <Pagination
-              count={pages}
-              page={page}
-              onChange={(_, v) => setPage(v)}
-              color="primary"
-              shape="rounded"
-              sx={{
-                "& .MuiPaginationItem-root": { borderRadius: "10px" },
-                "& .Mui-selected": { background: "linear-gradient(135deg,#6366f1,#06b6d4) !important", color: "#fff" },
-              }}
-            />
-          </Box>
-        </motion.div>
-      )}
+      <PaginationBar
+        page={page}
+        pages={pages}
+        total={total}
+        limit={limit}
+        onPageChange={setPage}
+        onLimitChange={(l) => {
+          setLimit(l);
+          setPage(1);
+        }}
+        isDark={isDark}
+      />
 
       {/* ── QR Code Modal ── */}
       <QRCodeModal

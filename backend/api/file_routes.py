@@ -15,16 +15,39 @@ router = APIRouter(prefix="/files", tags=["File Management"])
 def list_files(
     trf_number: str,
     folder_name: str,
+    page: int = 1,
+    limit: int = 10,
+    search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List all files inside a TRF sub-folder. Accessible by all authenticated users."""
+    """List all files inside a TRF sub-folder with pagination and search. Accessible by all authenticated users."""
+    from typing import Optional
     check_trf_access(db, current_user, trf_number)
     files = file_service.list_files(db, trf_number, folder_name)
+
+    if search and search.strip():
+        q = search.strip().lower()
+        files = [
+            f for f in files
+            if q in (f.get("filename") or f.get("name") or "").lower()
+        ]
+
+    total = len(files)
+    pages = max(1, (total + limit - 1) // limit)
+    page_num = min(page, pages)
+    start = (page_num - 1) * limit
+    page_files = files[start : start + limit]
+
     return {
         "trf_number": trf_number,
         "folder_name": folder_name,
-        "files": files,
+        "files": page_files,
+        "items": page_files,
+        "total": total,
+        "page": page_num,
+        "pages": pages,
+        "limit": limit,
     }
 
 

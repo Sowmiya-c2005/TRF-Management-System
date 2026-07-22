@@ -237,8 +237,15 @@ def send_admin_action_notification(
 ) -> None:
     """
     Formulate and send a professional HTML email notification to all active Admins.
-    Triggered for actions performed by any role (Admin, Manager, or Engineer).
+    Triggered for actions performed by Manager or Engineer roles only.
+    Admin actions are recorded in audit logs but do NOT generate self-notification emails.
     """
+    # —— ADMIN SELF-NOTIFICATION GUARD ——
+    # Admin actions are audited but never generate self-notification emails.
+    if actor_role == "Admin":
+        logger.info(f"[EMAIL-SKIP] Admin action '{action_name}' by '{actor_name}' — skipping self-notification (audit log records this action).")
+        return
+
     logger.info(f"[SMTP-DEBUG] Triggering admin action notification for action '{action_name}' by '{actor_name}' ({actor_role})")
 
     from datetime import datetime
@@ -571,3 +578,191 @@ def email_project_assigned(db, trf_number: str, manager_id: Optional[int],
     )
 
 
+def send_user_action_notification(
+    db,
+    actor_name: str,
+    actor_role: str,
+    actor_email: str,
+    action: str,
+    details: str,
+    trf_number: Optional[str] = None,
+    notify_user_email: Optional[str] = None,
+) -> None:
+    """
+    Send a notification to all active Admins for non-TRF user actions
+    (login, password change, profile update, user creation, password reset, etc.).
+
+    - If actor_role == "Admin": skip admin self-notification (Admin actions are audit-logged).
+    - If notify_user_email is provided: also send an email to that address (e.g., new account welcome, password reset).
+    """
+    # Admin self-notification guard
+    if actor_role == "Admin" and not notify_user_email:
+        logger.info(f"[EMAIL-SKIP] Admin action '{action}' — skipping self-notification.")
+        return
+
+    from datetime import datetime
+    from backend.models.user_model import User as UserModel
+
+    date_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    trf_str = trf_number or "N/A"
+    c = _cfg(db)
+
+    if not _ready(c):
+        logger.warning(f"[EMAIL-SKIP] SMTP not configured — skipping notification for '{action}'.")
+        return
+
+    subject_admin = f"[TRF Portal] {actor_role} Action: {action}"
+    subject_user  = f"[TRF Portal] {action} — Account Notification"
+
+    def _build_html(headline: str) -> str:
+        return f"""<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 0;background-color:#f1f5f9">
+    <tr><td align="center">
+      <table width="580" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border-radius:16px;
+                    border:1px solid #e2e8f0;
+                    box-shadow:0 10px 25px -5px rgba(0,0,0,0.1)">
+        <tr>
+          <td style="background:linear-gradient(135deg,#6366f1,#06b6d4);
+                     border-radius:16px 16px 0 0;padding:24px 32px">
+            <table cellpadding="0" cellspacing="0" width="100%">
+              <tr>
+                <td style="width:40px;height:40px;background:rgba(255,255,255,0.2);
+                           border-radius:8px;text-align:center;vertical-align:middle;
+                           font-size:20px;padding:2px">🔔</td>
+                <td style="padding-left:14px">
+                  <div style="color:#ffffff;font-weight:700;font-size:16px">TRF Portal Notification</div>
+                  <div style="color:rgba(255,255,255,0.8);font-size:11px;
+                              letter-spacing:1px;text-transform:uppercase">Enterprise Edition</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px">
+            <p style="margin:0 0 16px;color:#334155;font-size:15px;line-height:1.5">{headline}</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:24px">
+              <tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:10px 0;color:#64748b;font-size:13px;width:150px;font-weight:600">User Name</td>
+                <td style="padding:10px 0;color:#1e293b;font-size:14px;font-weight:700">{actor_name}</td>
+              </tr>
+              <tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:600">User Role</td>
+                <td style="padding:10px 0;font-size:13px">
+                  <span style="background:#e0e7ff;color:#6366f1;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px">{actor_role}</span>
+                </td>
+              </tr>
+              <tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:600">User Email</td>
+                <td style="padding:10px 0;color:#1e293b;font-size:13px">{actor_email or "—"}</td>
+              </tr>
+              <tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:600">Action</td>
+                <td style="padding:10px 0;color:#b91c1c;font-size:14px;font-weight:700">{action}</td>
+              </tr>
+              <tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:600">Details</td>
+                <td style="padding:10px 0;color:#475569;font-size:13px;font-style:italic">{details}</td>
+              </tr>
+              <tr style="border-bottom:1px solid #f1f5f9">
+                <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:600">TRF Number</td>
+                <td style="padding:10px 0;color:#1e293b;font-size:13px">{trf_str}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:600">Date &amp; Time</td>
+                <td style="padding:10px 0;color:#1e293b;font-size:13px">{date_time_str}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 32px 32px">
+            <a href="{c['app_url']}"
+               style="display:inline-block;padding:12px 28px;
+                      background:linear-gradient(135deg,#6366f1,#06b6d4);
+                      color:#ffffff;border-radius:10px;text-decoration:none;
+                      font-weight:600;font-size:13px">
+              Open TRF Portal →
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="border-top:1px solid #e2e8f0;padding:20px 32px;background:#f8fafc;border-radius:0 0 16px 16px">
+            <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5">
+              TRF Management Portal · Enterprise Edition.<br/>
+              This is an automated notification — please do not reply.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+    import threading
+
+    def bg():
+        from backend.database.database import SessionLocal
+        bg_db = SessionLocal()
+        try:
+            recipients = []
+
+            # Notify all active Admins (skip if actor is Admin themselves)
+            if actor_role != "Admin":
+                try:
+                    admin_emails = [
+                        a.email.strip()
+                        for a in bg_db.query(UserModel).filter(
+                            UserModel.role == "Admin", UserModel.is_active == True
+                        ).all()
+                        if a.email and a.email.strip()
+                    ]
+                except Exception:
+                    admin_emails = []
+                for ae in admin_emails:
+                    recipients.append((ae, subject_admin, _build_html(
+                        f"A <strong>{actor_role}</strong> has performed the following action:"
+                    )))
+
+            # Also notify the user themselves (e.g., new account, password reset)
+            if notify_user_email and notify_user_email.strip():
+                recipients.append((notify_user_email.strip(), subject_user, _build_html(
+                    "The following action has been performed on your TRF Portal account:"
+                )))
+
+            if not recipients:
+                logger.info("[EMAIL-SKIP] No recipients for user action notification.")
+                return
+
+            plain = (
+                f"Action: {action}\nUser: {actor_name} ({actor_role})\n"
+                f"Email: {actor_email}\nDetails: {details}\n"
+                f"TRF: {trf_str}\nTime: {date_time_str}"
+            )
+
+            with smtplib.SMTP(c["host"], c["port"], timeout=15) as srv:
+                srv.ehlo()
+                srv.starttls()
+                srv.ehlo()
+                srv.login(c["user"], c["password"])
+                for to_email, subj, html_body in recipients:
+                    msg = MIMEMultipart("alternative")
+                    msg["Subject"] = subj
+                    msg["From"]    = f"TRF Portal <{c['from']}>"
+                    msg["To"]      = to_email
+                    msg.attach(MIMEText(plain, "plain"))
+                    msg.attach(MIMEText(html_body, "html"))
+                    srv.sendmail(c["from"], to_email, msg.as_string())
+                    logger.info(f"✅ User action email sent to {to_email!r}: {subj!r}")
+        except smtplib.SMTPAuthenticationError as auth_err:
+            logger.error(f"❌ SMTP Auth failed: {auth_err}")
+        except Exception as exc:
+            logger.error(f"❌ send_user_action_notification error: {type(exc).__name__}: {exc}")
+        finally:
+            bg_db.close()
+
+    threading.Thread(target=bg, daemon=True).start()

@@ -1,7 +1,5 @@
-"""
-User & Auth API routes.  Prefix: /users
-"""
-from fastapi import APIRouter, Depends, status, Request
+from typing import Optional
+from fastapi import APIRouter, Depends, Query, status, Request, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.database.database import get_db
@@ -15,7 +13,6 @@ from backend.schemas.user_schema import (
 from backend.services import user_service, audit_service, notification_service
 from backend.middleware.auth_middleware import get_current_user, RoleChecker
 from backend.models.user_model import User
-from fastapi import HTTPException
 
 router = APIRouter(prefix="/users", tags=["Users & Auth"])
 
@@ -152,9 +149,94 @@ def change_password(
 
 # ── Admin: list & create ──────────────────────────────────────────────────────
 
-@router.get("/", response_model=list[UserProfileResponse])
-def list_users(db: Session = Depends(get_db), _: User = Depends(RoleChecker(["Admin"]))):
-    return user_service.get_all_users(db)
+@router.get("/", response_model=dict)
+def list_users(
+    search:   Optional[str] = Query(None, description="Search by username, display name, or email"),
+    role:     Optional[str] = Query(None, description="Filter by role (Admin, Manager, Engineer)"),
+    status:   Optional[str] = Query(None, description="Filter by status (Active, Inactive)"),
+    sort_by:  Optional[str] = Query("created_at", description="Sort field"),
+    order:    Optional[str] = Query("desc", description="Sort order asc/desc"),
+    page:     int           = Query(1, ge=1, description="Page number"),
+    limit:    int           = Query(10, ge=1, le=100, description="Records per page"),
+    db: Session = Depends(get_db),
+    _: User = Depends(RoleChecker(["Admin"]))
+):
+    # Normalize parameters if passed as Query default objects (e.g. direct function call)
+    search = search if isinstance(search, str) else None
+    role = role if isinstance(role, str) else None
+    status = status if isinstance(status, str) else None
+    sort_by = sort_by if isinstance(sort_by, str) else "created_at"
+    order = order if isinstance(order, str) else "desc"
+    page = page if isinstance(page, int) else 1
+    limit = limit if isinstance(limit, int) else 10
+
+    users = user_service.get_all_users(db)
+
+    # ── Search ────────────────────────────────────────────────────────────────
+    if search and search.strip():
+        q = search.strip().lower()
+        users = [
+            u for u in users
+            if q in (u.username or "").lower()
+            or q in (u.display_name or "").lower()
+            or q in (u.email or "").lower()
+        ]
+
+    # ── Filter by Role ────────────────────────────────────────────────────────
+    if role and role.strip() and role.strip().lower() != "all":
+        users = [u for u in users if (u.role or "").lower() == role.strip().lower()]
+
+    # ── Filter by Status ──────────────────────────────────────────────────────
+    if status and status.strip() and status.strip().lower() != "all":
+        st = status.strip().lower()
+        if st in ("active", "true", "1"):
+            users = [u for u in users if u.is_active is not False]
+        elif st in ("inactive", "deactivated", "false", "0"):
+            users = [u for u in users if u.is_active is False]
+
+    # ── Sort ──────────────────────────────────────────────────────────────────
+    rev = (order or "desc").lower() != "asc"
+    valid_sort_fields = {"username", "display_name", "role", "email", "created_at", "last_login_at"}
+    sb = sort_by if sort_by in valid_sort_fields else "created_at"
+
+    users = sorted(
+        users,
+        key=lambda u: (getattr(u, sb, None) or ""),
+        reverse=rev
+    )
+
+    # ── Paginate ──────────────────────────────────────────────────────────────
+    total = len(users)
+    pages = max(1, (total + limit - 1) // limit)
+    page_num = min(page, pages)
+    start = (page_num - 1) * limit
+    page_items = users[start : start + limit]
+
+    # Convert ORM items to dicts
+    items = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "display_name": u.display_name,
+            "role": u.role,
+            "phone": u.phone,
+            "avatar_url": u.avatar_url,
+            "is_active": u.is_active,
+            "last_login_at": u.last_login_at,
+            "created_at": u.created_at,
+            "updated_at": u.updated_at,
+        }
+        for u in page_items
+    ]
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page_num,
+        "pages": pages,
+        "limit": limit,
+    }
 
 
 @router.post("/", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED)

@@ -327,7 +327,7 @@ export default function Navbar() {
               {displayName}
             </Typography>
             <Typography variant="caption" sx={{ color: theme.palette.text.secondary, fontSize: "0.7rem" }}>
-              {user?.email || `${user?.username || "admin"}@trf.com`}
+              {user?.email || "No email set — update via Profile"}
             </Typography>
           </Box>
         </Box>

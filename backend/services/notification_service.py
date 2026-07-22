@@ -133,7 +133,7 @@ def get_unread_count(db: Session, user_id: int) -> int:
 
 # ── Notification Triggers ─────────────────────────────────────────────────────
 
-def notify_trf_assigned(db: Session, trf_number: str, manager_id: int, engineer_ids: list[int], assigned_by: str):
+def notify_trf_assigned(db: Session, trf_number: str, manager_id: Optional[int], engineer_ids: Optional[list[int]], assigned_by: str):
     """Notify when a TRF is assigned to manager and engineers."""
     # Notify manager
     if manager_id:
@@ -146,19 +146,20 @@ def notify_trf_assigned(db: Session, trf_number: str, manager_id: int, engineer_
         )
     
     # Notify engineers
-    for engineer_id in engineer_ids:
-        create_notification(
-            db,
-            user_id=engineer_id,
-            title=f"TRF {trf_number} Assigned to You",
-            body=f"You have been assigned to work on TRF {trf_number} by {assigned_by}.",
-            notif_type="assignment"
-        )
+    for engineer_id in (engineer_ids or []):
+        if engineer_id:
+            create_notification(
+                db,
+                user_id=engineer_id,
+                title=f"TRF {trf_number} Assigned to You",
+                body=f"You have been assigned to work on TRF {trf_number} by {assigned_by}.",
+                notif_type="assignment"
+            )
 
 
-def notify_document_uploaded(db: Session, trf_number: str, filename: str, uploaded_by: str, manager_id: int, engineer_ids: list[int]):
+def notify_document_uploaded(db: Session, trf_number: str, filename: str, uploaded_by: str, manager_id: Optional[int], engineer_ids: Optional[list[int]]):
     """Notify when a document is uploaded to a TRF."""
-    recipients = [manager_id] + engineer_ids if manager_id else engineer_ids
+    recipients = ([manager_id] if manager_id else []) + (engineer_ids or [])
     
     for user_id in recipients:
         if user_id:
@@ -171,9 +172,9 @@ def notify_document_uploaded(db: Session, trf_number: str, filename: str, upload
             )
 
 
-def notify_status_changed(db: Session, trf_number: str, old_status: str, new_status: str, manager_id: int, engineer_ids: list[int]):
+def notify_status_changed(db: Session, trf_number: str, old_status: str, new_status: str, manager_id: Optional[int], engineer_ids: Optional[list[int]]):
     """Notify when TRF status changes."""
-    recipients = [manager_id] + engineer_ids if manager_id else engineer_ids
+    recipients = ([manager_id] if manager_id else []) + (engineer_ids or [])
     
     for user_id in recipients:
         if user_id:
@@ -186,9 +187,9 @@ def notify_status_changed(db: Session, trf_number: str, old_status: str, new_sta
             )
 
 
-def notify_comment_added(db: Session, trf_number: str, commenter: str, comment_preview: str, manager_id: int, engineer_ids: list[int]):
+def notify_comment_added(db: Session, trf_number: str, commenter: str, comment_preview: str, manager_id: Optional[int], engineer_ids: Optional[list[int]]):
     """Notify when a comment is added to a TRF."""
-    recipients = [manager_id] + engineer_ids if manager_id else engineer_ids
+    recipients = ([manager_id] if manager_id else []) + (engineer_ids or [])
     
     for user_id in recipients:
         if user_id:
@@ -201,9 +202,9 @@ def notify_comment_added(db: Session, trf_number: str, commenter: str, comment_p
             )
 
 
-def notify_approval_completed(db: Session, trf_number: str, approved_by: str, engineer_ids: list[int]):
+def notify_approval_completed(db: Session, trf_number: str, approved_by: str, engineer_ids: Optional[list[int]]):
     """Notify when a TRF is approved."""
-    for engineer_id in engineer_ids:
+    for engineer_id in (engineer_ids or []):
         if engineer_id:
             create_notification(
                 db,
@@ -214,9 +215,9 @@ def notify_approval_completed(db: Session, trf_number: str, approved_by: str, en
             )
 
 
-def notify_rejection(db: Session, trf_number: str, rejected_by: str, reason: str, engineer_ids: list[int]):
+def notify_rejection(db: Session, trf_number: str, rejected_by: str, reason: str, engineer_ids: Optional[list[int]]):
     """Notify when a TRF is rejected."""
-    for engineer_id in engineer_ids:
+    for engineer_id in (engineer_ids or []):
         if engineer_id:
             create_notification(
                 db,

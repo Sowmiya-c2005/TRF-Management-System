@@ -11,6 +11,7 @@ import { useGreeting } from "../hooks/useGreeting";
 import { getMyAssignedTRFs } from "../services/assignmentService";
 import API from "../services/api";
 import toast from "react-hot-toast";
+import PaginationBar from "../components/PaginationBar";
 
 import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
@@ -246,6 +247,8 @@ export default function ManagerDashboard() {
   const [assignedTRFs, setAssignedTRFs] = useState([]);
   const [activities, setActivities] = useState([]);
   const [lastRefresh, setLastRefresh] = useState(Date.now());
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const headingColor = isDark ? "#f1f5f9" : "#0f172a";
   const subColor     = isDark ? "#64748b"  : "#94a3b8";
@@ -455,7 +458,7 @@ export default function ManagerDashboard() {
                   </Box>
                 </Box>
                 <Box component="tbody">
-                  {assignedTRFs.map((trf,i)=>(
+                  {assignedTRFs.slice((page - 1) * limit, page * limit).map((trf,i)=>(
                     <Box component="tr" key={trf.id||i}
                       onClick={()=>navigate(`/all`)}
                       sx={{
@@ -511,6 +514,15 @@ export default function ManagerDashboard() {
               </Box>
             </Box>
           )}
+          <PaginationBar
+            page={page}
+            pages={Math.ceil(assignedTRFs.length / limit) || 1}
+            total={assignedTRFs.length}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(l) => { setLimit(l); setPage(1); }}
+            isDark={isDark}
+          />
         </GlassCard>
       </motion.div>
 
