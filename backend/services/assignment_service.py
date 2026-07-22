@@ -106,17 +106,25 @@ def get_user_assigned_trfs(db: Session, user_id: int, user_role: str) -> List[TR
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
     
-    if user_role == "Admin":
+    if user_role in ("Admin", "Administrator"):
         # Admin sees all TRFs
         return trf_repo.get_all(db)
     elif user_role == "Manager":
-        # Manager sees TRFs assigned to them
-        return db.query(TRFRecord).filter(TRFRecord.assigned_manager_id == user_id).all()
+        # Manager sees TRFs assigned to them OR created by them
+        assigned = db.query(TRFRecord).filter(TRFRecord.assigned_manager_id == user_id).all()
+        created  = db.query(TRFRecord).filter(TRFRecord.created_by_id == user_id).all()
+        # Merge without duplicates
+        seen = {t.id for t in assigned}
+        return assigned + [t for t in created if t.id not in seen]
     elif user_role == "Engineer":
-        # Engineer sees TRFs they are assigned to
+        # Engineer sees TRFs they created OR are formally assigned to
+        created     = db.query(TRFRecord).filter(TRFRecord.created_by_id == user_id).all()
         assignments = assignment_repo.get_by_engineer_id(db, user_id)
-        trf_ids = [a.trf_id for a in assignments]
-        return db.query(TRFRecord).filter(TRFRecord.id.in_(trf_ids)).all()
+        assigned_ids = {a.trf_id for a in assignments}
+        assigned     = db.query(TRFRecord).filter(TRFRecord.id.in_(assigned_ids)).all() if assigned_ids else []
+        # Merge without duplicates
+        seen = {t.id for t in created}
+        return created + [t for t in assigned if t.id not in seen]
     else:
         return []
 

@@ -1,14 +1,26 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useApp } from "../context/AppContext";
 import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import ShieldRoundedIcon from "@mui/icons-material/ShieldRounded";
 import { motion } from "framer-motion";
 
 export default function ProtectedRoute({ children, allowedRoles }) {
-  const { user, isAuthenticated } = useApp();
+  const { user, isAuthenticated, authReady } = useApp();
   const location = useLocation();
+
+  // Wait for token validation to complete before deciding to redirect.
+  // This prevents a brief flash of the dashboard for users with a stale
+  // localStorage entry whose token has since expired on the backend.
+  if (!authReady) {
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+        <CircularProgress size={32} thickness={3} sx={{ color: "#6366f1" }} />
+      </Box>
+    );
+  }
 
   if (!isAuthenticated) {
     // Redirect to login page, but save the current location they were trying to go to

@@ -48,9 +48,20 @@ def get_admin_dashboard_stats(db: Session) -> dict:
         User.role == "Manager",
         User.is_active == True
     ).scalar() or 0
+
+    # Active admins
+    active_admins = db.query(func.count(User.id)).filter(
+        User.role == "Admin",
+        User.is_active == True
+    ).scalar() or 0
     
-    # Total users
-    total_users = db.query(func.count(User.id)).scalar() or 0
+    # Total active users (all roles)
+    total_users = db.query(func.count(User.id)).filter(
+        User.is_active == True
+    ).scalar() or 0
+
+    # Total users including inactive
+    total_all_users = db.query(func.count(User.id)).scalar() or 0
     
     # Recent activities (last 7 days)
     from datetime import datetime, timedelta
@@ -70,61 +81,65 @@ def get_admin_dashboard_stats(db: Session) -> dict:
         "completed_projects": completed_projects,
         "active_engineers": active_engineers,
         "active_managers": active_managers,
+        "active_admins": active_admins,
         "total_users": total_users,
-        "recent_activities": recent_activities
+        "total_all_users": total_all_users,
+        "recent_activities": recent_activities,
     }
 
 
 def get_manager_dashboard_stats(db: Session, manager_id: int) -> dict:
     """Get dashboard statistics for Manager role."""
-    # TRFs assigned to this manager
-    assigned_projects = db.query(func.count(TRFRecord.id)).filter(
-        TRFRecord.assigned_manager_id == manager_id
-    ).scalar() or 0
-    
-    # Pending reviews for assigned TRFs
-    pending_reviews = db.query(func.count(TRFRecord.id)).filter(
-        TRFRecord.assigned_manager_id == manager_id,
-        TRFRecord.status == "Under Review"
-    ).scalar() or 0
-    
-    # Active assigned projects
-    active_projects = db.query(func.count(TRFRecord.id)).filter(
-        TRFRecord.assigned_manager_id == manager_id,
-        TRFRecord.status.in_(["Assigned", "In Progress", "Under Review", "Approved"])
-    ).scalar() or 0
-    
-    # Completed assigned projects
-    completed_projects = db.query(func.count(TRFRecord.id)).filter(
-        TRFRecord.assigned_manager_id == manager_id,
-        TRFRecord.status == "Completed"
-    ).scalar() or 0
-    
-    # Team progress (percentage of assigned TRFs that are completed or approved)
-    total_assigned = assigned_projects or 1
-    completed_or_approved = db.query(func.count(TRFRecord.id)).filter(
-        TRFRecord.assigned_manager_id == manager_id,
-        TRFRecord.status.in_(["Approved", "Completed"])
-    ).scalar() or 0
-    team_progress = (completed_or_approved / total_assigned) * 100 if total_assigned > 0 else 0
-    
-    # Recent activities for assigned TRFs
-    assigned_trf_ids = db.query(TRFRecord.id).filter(
-        TRFRecord.assigned_manager_id == manager_id
-    ).all()
-    assigned_trf_ids = [t[0] for t in assigned_trf_ids]
-    
+    # TRFs assigned to this manager OR created by this manager
+    assigned_ids = {
+        r[0] for r in
+        db.query(TRFRecord.id).filter(TRFRecord.assigned_manager_id == manager_id).all()
+    }
+    created_ids = {
+        r[0] for r in
+        db.query(TRFRecord.id).filter(TRFRecord.created_by_id == manager_id).all()
+    }
+    all_ids = list(assigned_ids | created_ids)
+    assigned_projects = len(all_ids)
+
+    if all_ids:
+        pending_reviews = db.query(func.count(TRFRecord.id)).filter(
+            TRFRecord.id.in_(all_ids),
+            TRFRecord.status == "Under Review"
+        ).scalar() or 0
+
+        active_projects = db.query(func.count(TRFRecord.id)).filter(
+            TRFRecord.id.in_(all_ids),
+            TRFRecord.status.in_(["Assigned", "In Progress", "Under Review", "Approved"])
+        ).scalar() or 0
+
+        completed_projects = db.query(func.count(TRFRecord.id)).filter(
+            TRFRecord.id.in_(all_ids),
+            TRFRecord.status == "Completed"
+        ).scalar() or 0
+
+        completed_or_approved = db.query(func.count(TRFRecord.id)).filter(
+            TRFRecord.id.in_(all_ids),
+            TRFRecord.status.in_(["Approved", "Completed"])
+        ).scalar() or 0
+
+        unique_projects = db.query(func.count(func.distinct(TRFRecord.project_name))).filter(
+            TRFRecord.id.in_(all_ids)
+        ).scalar() or 0
+    else:
+        pending_reviews = active_projects = completed_projects = completed_or_approved = unique_projects = 0
+
+    team_progress = round((completed_or_approved / max(assigned_projects, 1)) * 100, 2)
+
     from datetime import datetime, timedelta
     week_ago = datetime.now() - timedelta(days=7)
-    recent_activities = db.query(func.count(Activity.id)).filter(
-        Activity.trf_id.in_(assigned_trf_ids),
-        Activity.created_at >= week_ago
-    ).scalar() or 0 if assigned_trf_ids else 0
-    
-    # Unique project names for this manager
-    unique_projects = db.query(func.count(func.distinct(TRFRecord.project_name))).filter(
-        TRFRecord.assigned_manager_id == manager_id
-    ).scalar() or 0
+    if all_ids:
+        recent_activities = db.query(func.count(Activity.id)).filter(
+            Activity.trf_id.in_(all_ids),
+            Activity.created_at >= week_ago
+        ).scalar() or 0
+    else:
+        recent_activities = 0
 
     return {
         "assigned_projects": assigned_projects,
@@ -133,57 +148,68 @@ def get_manager_dashboard_stats(db: Session, manager_id: int) -> dict:
         "active_projects": active_projects,
         "unique_projects": unique_projects,
         "completed_projects": completed_projects,
-        "team_progress": round(team_progress, 2),
-        "recent_activities": recent_activities
+        "team_progress": team_progress,
+        "recent_activities": recent_activities,
     }
 
 
 def get_engineer_dashboard_stats(db: Session, engineer_id: int) -> dict:
     """Get dashboard statistics for Engineer role."""
-    # TRFs assigned to this engineer
+    # TRFs formally assigned to this engineer via trf_engineer_assignments
     assignments = db.query(TRFEngineerAssignment).filter(
         TRFEngineerAssignment.engineer_id == engineer_id
     ).all()
-    trf_ids = [a.trf_id for a in assignments]
-    
+    assigned_ids = {a.trf_id for a in assignments}
+
+    # TRFs created by this engineer (even if not formally assigned)
+    from backend.models.trf_model import TRFRecord as TRF
+    created_ids = {
+        r[0] for r in
+        db.query(TRF.id).filter(TRF.created_by_id == engineer_id).all()
+    }
+
+    # Union — all TRF IDs visible to this engineer
+    trf_ids = list(assigned_ids | created_ids)
     my_assigned_trfs = len(trf_ids)
-    
-    # Pending tasks (In Progress or Under Review)
-    pending_tasks = db.query(func.count(TRFRecord.id)).filter(
-        TRFRecord.id.in_(trf_ids),
-        TRFRecord.status.in_(["In Progress", "Under Review"])
-    ).scalar() or 0 if trf_ids else 0
-    
-    # Active projects
-    active_projects = db.query(func.count(TRFRecord.id)).filter(
-        TRFRecord.id.in_(trf_ids),
-        TRFRecord.status.in_(["Assigned", "In Progress", "Under Review", "Approved"])
-    ).scalar() or 0 if trf_ids else 0
-    
-    # Completed projects
-    completed_projects = db.query(func.count(TRFRecord.id)).filter(
-        TRFRecord.id.in_(trf_ids),
-        TRFRecord.status == "Completed"
-    ).scalar() or 0 if trf_ids else 0
-    
+
+    if trf_ids:
+        pending_tasks = db.query(func.count(TRFRecord.id)).filter(
+            TRFRecord.id.in_(trf_ids),
+            TRFRecord.status.in_(["In Progress", "Under Review"])
+        ).scalar() or 0
+
+        active_projects = db.query(func.count(TRFRecord.id)).filter(
+            TRFRecord.id.in_(trf_ids),
+            TRFRecord.status.in_(["Assigned", "In Progress", "Under Review", "Approved"])
+        ).scalar() or 0
+
+        completed_projects = db.query(func.count(TRFRecord.id)).filter(
+            TRFRecord.id.in_(trf_ids),
+            TRFRecord.status == "Completed"
+        ).scalar() or 0
+
+        unique_projects = db.query(func.count(func.distinct(TRFRecord.project_name))).filter(
+            TRFRecord.id.in_(trf_ids)
+        ).scalar() or 0
+    else:
+        pending_tasks = active_projects = completed_projects = unique_projects = 0
+
     # Upload history (count of files uploaded by this engineer)
     from backend.models.file_model import FileRecord
     upload_history = db.query(func.count(FileRecord.id)).filter(
         FileRecord.uploaded_by_id == engineer_id
     ).scalar() or 0
-    
+
     # Recent activities
     from datetime import datetime, timedelta
     week_ago = datetime.now() - timedelta(days=7)
-    recent_activities = db.query(func.count(Activity.id)).filter(
-        Activity.trf_id.in_(trf_ids),
-        Activity.created_at >= week_ago
-    ).scalar() or 0 if trf_ids else 0
-    
-    # Unique project names assigned to this engineer
-    unique_projects = db.query(func.count(func.distinct(TRFRecord.project_name))).filter(
-        TRFRecord.id.in_(trf_ids)
-    ).scalar() or 0 if trf_ids else 0
+    if trf_ids:
+        recent_activities = db.query(func.count(Activity.id)).filter(
+            Activity.trf_id.in_(trf_ids),
+            Activity.created_at >= week_ago
+        ).scalar() or 0
+    else:
+        recent_activities = 0
 
     return {
         "my_assigned_trfs": my_assigned_trfs,
@@ -193,7 +219,7 @@ def get_engineer_dashboard_stats(db: Session, engineer_id: int) -> dict:
         "unique_projects": unique_projects,
         "completed_projects": completed_projects,
         "upload_history": upload_history,
-        "recent_activities": recent_activities
+        "recent_activities": recent_activities,
     }
 
 
@@ -222,14 +248,23 @@ def get_unread_notification_count(db: Session, user_id: int) -> int:
 
 
 def get_recent_activities(db: Session, limit: int = 10, current_user: User = None) -> List[Activity]:
-    """Get recent activities based on role."""
-    if not current_user or current_user.role == "Admin":
-        return db.query(Activity).order_by(Activity.created_at.desc()).limit(limit).all()
-    
+    """Get recent activities based on role — uses joinedload to avoid N+1 queries."""
+    from sqlalchemy.orm import joinedload
+
+    if not current_user or current_user.role in ("Admin", "Administrator"):
+        return (
+            db.query(Activity)
+            .options(joinedload(Activity.user))
+            .order_by(Activity.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+
     from backend.models.trf_assignment_model import TRFEngineerAssignment
     if current_user.role == "Manager":
         return (
             db.query(Activity)
+            .options(joinedload(Activity.user))
             .join(TRFRecord, Activity.trf_id == TRFRecord.id)
             .filter(TRFRecord.assigned_manager_id == current_user.id)
             .order_by(Activity.created_at.desc())
@@ -239,6 +274,7 @@ def get_recent_activities(db: Session, limit: int = 10, current_user: User = Non
     elif current_user.role == "Engineer":
         return (
             db.query(Activity)
+            .options(joinedload(Activity.user))
             .join(TRFRecord, Activity.trf_id == TRFRecord.id)
             .join(TRFEngineerAssignment, TRFEngineerAssignment.trf_id == TRFRecord.id)
             .filter(TRFEngineerAssignment.engineer_id == current_user.id)

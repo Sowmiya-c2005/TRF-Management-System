@@ -80,7 +80,20 @@ def get_trf_assignments(
     current_user: User = Depends(get_current_user),
 ):
     """Get assignments for a specific TRF."""
-    return assignment_service.get_trf_assignments(db, trf_id)
+    data = assignment_service.get_trf_assignments(db, trf_id)
+    # Serialize engineer_assignments ORM objects
+    eng_assignments = data.get("engineer_assignments", [])
+    data["engineer_assignments"] = [
+        {
+            "id":             ea.id,
+            "trf_id":         ea.trf_id,
+            "engineer_id":    ea.engineer_id,
+            "assigned_by_id": ea.assigned_by_id,
+            "assigned_at":    ea.assigned_at.isoformat() if ea.assigned_at else None,
+        }
+        for ea in eng_assignments
+    ]
+    return data
 
 
 @router.get("/my-trfs")
@@ -90,7 +103,25 @@ def get_my_assigned_trfs(
 ):
     """Get TRFs assigned to the current user based on their role."""
     trfs = assignment_service.get_user_assigned_trfs(db, current_user.id, current_user.role)
-    return {"trfs": trfs, "count": len(trfs)}
+    serialized = [
+        {
+            "id":                  t.id,
+            "trf_number":          t.trf_number,
+            "project_name":        t.project_name,
+            "status":              t.status,
+            "priority":            t.priority,
+            "due_date":            t.due_date.isoformat() if t.due_date else None,
+            "remarks":             t.remarks,
+            "sharepoint_status":   t.sharepoint_status,
+            "sharepoint_message":  t.sharepoint_message,
+            "assigned_manager_id": t.assigned_manager_id,
+            "engineer_ids":        t.engineer_ids,
+            "created_at":          t.created_at.isoformat() if t.created_at else None,
+            "updated_at":          t.updated_at.isoformat() if t.updated_at else None,
+        }
+        for t in trfs
+    ]
+    return {"trfs": serialized, "count": len(serialized)}
 
 
 @router.put("/trf/{trf_id}/status", response_model=TRFStatusResponse)

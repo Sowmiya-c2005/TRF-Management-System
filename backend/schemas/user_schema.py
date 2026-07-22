@@ -66,13 +66,14 @@ class UserProfileResponse(BaseModel):
     id:            int
     username:      str
     role:          str
-    email:         Optional[str]  = None
-    display_name:  Optional[str]  = None
-    phone:         Optional[str]  = None
-    avatar_url:    Optional[str]  = None
-    is_active:     bool           = True
+    email:         Optional[str]      = None
+    display_name:  Optional[str]      = None
+    phone:         Optional[str]      = None
+    avatar_url:    Optional[str]      = None
+    is_active:     bool               = True
     last_login_at: Optional[datetime] = None
     created_at:    datetime
+    updated_at:    Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

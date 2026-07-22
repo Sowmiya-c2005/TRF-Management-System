@@ -204,11 +204,11 @@ def update_trf(
     trf_number: str,
     payload: TRFUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(RoleChecker(["Admin", "Engineer"])),
+    current_user: User = Depends(RoleChecker(["Admin", "Engineer", "Manager"])),
 ):
-    """Update the project name of an existing TRF."""
+    """Update TRF fields (project name, priority, due_date, remarks)."""
     check_trf_access(db, current_user, trf_number)
-    return trf_service.update_trf(db, trf_number, payload.project_name, current_user=current_user)
+    return trf_service.update_trf(db, trf_number, payload.project_name, current_user=current_user, payload=payload)
 
 
 

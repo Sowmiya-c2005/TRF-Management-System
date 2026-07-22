@@ -75,11 +75,27 @@ const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
   const [user,          setUser]          = useState(loadUser);
+  const [authReady,     setAuthReady]     = useState(false);  // true once token validated
   const [notifications, setNotifications] = useState(SEED_NOTIFICATIONS);
   const [activities,    setActivities]    = useState(SEED_ACTIVITIES);
   const [prefs,         setPrefsState]    = useState(loadPrefs);
   const [wsConnected,   setWsConnected]   = useState(false);
   const wsRef = useRef(null);
+
+  // ── Startup token validation ───────────────────────────────────────────────
+  // RULE: Every time the app starts fresh, the user MUST sign in again.
+  // We clear localStorage immediately on mount, then set authReady=true.
+  // This guarantees the Login page is always shown first on every app launch.
+  // (Page refresh while already on a protected route is handled by ProtectedRoute
+  //  — it will redirect to /login since user is null, then user signs in again.)
+  useEffect(() => {
+    localStorage.removeItem("authUser");
+    localStorage.removeItem("token");
+    localStorage.removeItem("refresh_token");
+    setUser(null);
+    setAuthReady(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Notifications ──────────────────────────────────────────────────────────
   const fetchNotifications = useCallback(async () => {
@@ -260,7 +276,7 @@ export function AppProvider({ children }) {
       username:    userData.username,
       role:        userData.role        || "Engineer",
       email:       userData.email       || userData.username || "",
-      displayName: userData.displayName || userData.username,
+      displayName: userData.displayName || userData.display_name || userData.username,
       phone:       userData.phone       || "",
       avatar:      userData.avatar      || null,
       joinedAt:    userData.joinedAt    || new Date().toISOString(),
@@ -273,6 +289,7 @@ export function AppProvider({ children }) {
     }
     localStorage.setItem("authUser", JSON.stringify(enriched));
     setUser(enriched);
+    setAuthReady(true);
   }, []);
 
   const updateUser = useCallback((patch) => {
@@ -288,6 +305,7 @@ export function AppProvider({ children }) {
     localStorage.removeItem("token");
     localStorage.removeItem("refresh_token");
     setUser(null);
+    setAuthReady(true);  // keep authReady true so Login page renders immediately
     setNotifications(SEED_NOTIFICATIONS);
     setActivities(SEED_ACTIVITIES);
   }, []);
@@ -313,6 +331,7 @@ export function AppProvider({ children }) {
         // auth
         user, signIn, signOut, updateUser,
         isAuthenticated: !!user,
+        authReady,
         // notifications
         notifications, unreadCount, fetchUnreadCount,
         markRead, markAllRead, clearNotifications, addNotification,

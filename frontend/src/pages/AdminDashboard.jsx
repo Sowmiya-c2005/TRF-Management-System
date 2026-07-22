@@ -497,50 +497,57 @@ export default function AdminDashboard() {
 
   const loadData = useCallback(() => {
     setLoading(true);
-    Promise.all([
+    // Use allSettled so a 403 on /users/ doesn't kill the dashboard stats
+    Promise.allSettled([
       API.get("/dashboard/admin"),
       getAllTRFs({ per_page: 100 }),
       API.get("/users/"),
     ])
-      .then(([dashRes, trfRes, userRes]) => {
-        const d = dashRes.data;
-        setStats(d.stats);
+      .then(([dashResult, trfResult, userResult]) => {
+        // Dashboard stats — primary data, always show
+        if (dashResult.status === "fulfilled") {
+          const d = dashResult.value.data;
+          setStats(d.stats);
+          const acts = Array.isArray(d.recent_activities) ? d.recent_activities : [];
+          setActivities(acts.map(log => ({
+            id:     log.id,
+            action: log.description  || log.action_type || "System action",
+            user:   log.username     || "System",
+            time:   new Date(log.created_at || Date.now()),
+            color:  (log.action_type || "").includes("DELETE") ? "#ef4444"
+                  : (log.action_type || "").includes("CREATE") ? "#6366f1"
+                  : "#f59e0b",
+          })));
+        }
 
-        const acts = Array.isArray(d.recent_activities) ? d.recent_activities : [];
-        setActivities(acts.map(log => ({
-          id:     log.id,
-          action: log.description  || log.action_type || "System action",
-          user:   log.username     || "System",
-          time:   new Date(log.created_at || Date.now()),
-          color:  (log.action_type || "").includes("DELETE") ? "#ef4444"
-                : (log.action_type || "").includes("CREATE") ? "#6366f1"
-                : "#f59e0b",
-        })));
+        // TRF list
+        if (trfResult.status === "fulfilled") {
+          const trfRes = trfResult.value;
+          const rawList = trfRes.data?.items ?? (Array.isArray(trfRes.data) ? trfRes.data : []);
+          setTrfsList(rawList);
+          setMonthly(buildMonthly(rawList));
+          const projMap = {};
+          rawList.forEach(t => {
+            const name = t.project_name || "Unnamed Project";
+            if (!projMap[name]) projMap[name] = { name, count: 0, completed: 0, status: t.status };
+            projMap[name].count++;
+            if (t.status === "Approved" || t.status === "Completed") projMap[name].completed++;
+          });
+          const derived = Object.values(projMap).map(p => ({
+            name: p.name,
+            progress: Math.round((p.completed / p.count) * 100) || 15,
+            status: p.status,
+            color: (p.status === "Completed" || p.status === "Approved") ? "#10b981" : "#06b6d4",
+          }));
+          setProjects(derived.slice(0, 4));
+        }
 
-        // Handle both modern paginated response and legacy plain array
-        const rawList = trfRes.data?.items ?? (Array.isArray(trfRes.data) ? trfRes.data : []);
-        setTrfsList(rawList);
-        setMonthly(buildMonthly(rawList));
-
-        const userList = Array.isArray(userRes.data) ? userRes.data : [];
-        setUsers(userList);
-
-        const projMap = {};
-        rawList.forEach(t => {
-          const name = t.project_name || "Unnamed Project";
-          if (!projMap[name]) projMap[name] = { name, count: 0, completed: 0, status: t.status };
-          projMap[name].count++;
-          if (t.status === "Approved" || t.status === "Completed") projMap[name].completed++;
-        });
-        const derived = Object.values(projMap).map(p => ({
-          name: p.name,
-          progress: Math.round((p.completed / p.count) * 100) || 15,
-          status: p.status,
-          color: (p.status === "Completed" || p.status === "Approved") ? "#10b981" : "#06b6d4",
-        }));
-        setProjects(derived.slice(0, 4));
+        // User list — optional, only available to Admin
+        if (userResult.status === "fulfilled") {
+          const userList = Array.isArray(userResult.value.data) ? userResult.value.data : [];
+          setUsers(userList);
+        }
       })
-      .catch(err => console.error("AdminDashboard loading error:", err))
       .finally(() => setLoading(false));
   }, []);
 

@@ -3,7 +3,7 @@
  * Every colour, size, shadow, and layout matched to the image.
  */
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { login } from "../services/userService";
 import { useApp } from "../context/AppContext";
@@ -410,7 +410,8 @@ const CSS = `
 ───────────────────────────────────────────────────────────────── */
 export default function Login() {
   const navigate = useNavigate();
-  const { signIn } = useApp();
+  const location = useLocation();
+  const { signIn, signOut, isAuthenticated, authReady } = useApp();
   const [usr,     setUsr]    = useState("");
   const [pw,      setPw]     = useState("");
   const [showPw,  setShowPw] = useState(false);
@@ -419,6 +420,13 @@ export default function Login() {
   const [fU,      setFU]     = useState(false);
   const [fP,      setFP]     = useState(false);
   const [mouse,   setMouse]  = useState({x:0,y:0});
+
+  // When the Login page mounts, always clear any existing session.
+  // This ensures the user must always enter credentials — no auto-skip.
+  useEffect(() => {
+    signOut();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onMove = useCallback(e => setMouse({
     x:(e.clientX/window.innerWidth-.5)*2,
@@ -454,9 +462,10 @@ export default function Login() {
 
       toast$("success", `Welcome, ${displayName}! Redirecting to your dashboard…`);
 
-      // Auto-redirect to the correct dashboard based on DB role
-      const destination = ROLE_ROUTES[role] || "/dashboard/engineer";
-      setTimeout(() => navigate(destination), 900);
+      // Redirect to the page they originally tried to access, or their role dashboard
+      const from = location.state?.from?.pathname;
+      const destination = from || ROLE_ROUTES[role] || "/dashboard/engineer";
+      setTimeout(() => navigate(destination, { replace: true }), 900);
     } catch(err) {
       toast$("error", err?.response?.data?.detail || err?.message || "Login failed");
     } finally { setLoad(false); }
@@ -638,7 +647,7 @@ export default function Login() {
                   </label>
                   <input className="li" type="email" value={usr} onChange={e=>setUsr(e.target.value)}
                     onFocus={()=>setFU(true)} onBlur={()=>setFU(false)}
-                    placeholder="user@example.com" autoComplete="email" style={inp(fU)}/>
+                    placeholder="Enter your email" autoComplete="email" style={inp(fU)}/>
                 </div>
                 <div>
                   <label style={{display:"block",fontSize:12,fontWeight:600,color:"#94a3b8",letterSpacing:.9,marginBottom:7}}>

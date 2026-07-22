@@ -59,9 +59,15 @@ def create_trf(db: Session, payload: TRFCreate, current_user: Optional[User] = N
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"TRF '{payload.trf_number}' already exists.")
 
-    new_trf = TRFRecord(trf_number=payload.trf_number,
-                        project_name=payload.project_name,
-                        sharepoint_status="pending")
+    new_trf = TRFRecord(
+        trf_number=payload.trf_number,
+        project_name=payload.project_name,
+        sharepoint_status="pending",
+        created_by_id=current_user.id if current_user else None,
+        priority=getattr(payload, "priority", "Medium") or "Medium",
+        due_date=getattr(payload, "due_date", None),
+        remarks=getattr(payload, "remarks", None),
+    )
     trf_repo.create(db, new_trf)
 
     # ── Use configured storage root ──
@@ -114,23 +120,34 @@ def create_trf(db: Session, payload: TRFCreate, current_user: Optional[User] = N
     return new_trf
 
 
-def update_trf(db: Session, trf_number: str, project_name: str, current_user: Optional[User] = None) -> TRFRecord:
+def update_trf(db: Session, trf_number: str, project_name: str = None,
+               current_user: Optional[User] = None, payload=None) -> TRFRecord:
+    from datetime import datetime, timezone
     trf = get_trf_by_number(db, trf_number)
     old = trf.project_name
-    trf.project_name = project_name
+    if project_name is not None and project_name.strip():
+        trf.project_name = project_name.strip()
+    # Apply extended fields if a full payload was passed
+    if payload is not None:
+        if getattr(payload, "priority", None) is not None:
+            trf.priority = payload.priority
+        if getattr(payload, "due_date", None) is not None:
+            trf.due_date = payload.due_date
+        if getattr(payload, "remarks", None) is not None:
+            trf.remarks = payload.remarks
+    trf.updated_at = datetime.now(timezone.utc)
     trf_repo.commit(db)
     user_id   = current_user.id       if current_user else None
     user_name = current_user.username if current_user else "System"
     audit_service.log_action(db, user_id=user_id, action="UPDATE_TRF",
-        details=f"TRF '{trf_number}': '{old}' → '{project_name}' by '{user_name}'.")
+        details=f"TRF '{trf_number}': '{old}' -> '{trf.project_name}' by '{user_name}'.")
     notification_service.create_notification(db, user_id=None,
         title=f"TRF Updated: {trf_number}",
-        body=f"Project name changed to '{project_name}' by '{user_name}'.", notif_type="trf")
-    # Email admins on update (only for Engineer/Manager actions)
+        body=f"Project name changed to '{trf.project_name}' by '{user_name}'.", notif_type="trf")
     try:
         actor_role = current_user.role if current_user else "System"
         if actor_role in ("Engineer", "Manager"):
-            email_trf_updated(db, trf_number, old, project_name, user_name, actor_role)
+            email_trf_updated(db, trf_number, old, trf.project_name, user_name, actor_role)
     except Exception as e:
         logger.warning(f"TRF update email error: {e}")
     return trf

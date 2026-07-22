@@ -51,11 +51,15 @@ export const searchTRF = (trfNumber) =>
 
 // ── Write operations ──────────────────────────────────────────────────────────
 
-export const createTRF = (trfNumber, projectName) =>
-  API.post("/create-trf", { trf_number: trfNumber, project_name: projectName });
+/**
+ * Create TRF — uses POST /trfs/ (modern endpoint).
+ * The backend reads current_user from the JWT token and sets created_by_id correctly.
+ */
+export const createTRF = (trfNumber, projectName, extra = {}) =>
+  API.post("/trfs/", { trf_number: trfNumber, project_name: projectName, ...extra });
 
 export const updateTRF = (trfNumber, projectName) =>
-  API.put(`/update-trf/${trfNumber}?project_name=${encodeURIComponent(projectName)}`);
+  API.put(`/trfs/${trfNumber}`, { project_name: projectName });
 
 export const deleteTRF = (trfNumber) =>
-  API.delete(`/delete-trf/${trfNumber}`);
+  API.delete(`/trfs/${trfNumber}`);

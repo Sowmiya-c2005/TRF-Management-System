@@ -30,10 +30,12 @@ def get_current_user(
     Extract and validate the JWT access token.
     If REQUIRE_AUTH=False and no token is supplied, returns the first Admin in DB.
     """
+    # Read at request time so a backend restart picks up .env changes correctly
+    require_auth = os.getenv("REQUIRE_AUTH", "false").lower() == "true"
     token = credentials.credentials if credentials else None
 
     if not token:
-        if not REQUIRE_AUTH:
+        if not require_auth:
             # Return the actual first Admin user from DB — NOT a hardcoded fallback
             user = db.query(User).filter(User.role == "Admin", User.is_active == True).first()
             if not user:

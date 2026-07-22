@@ -26,6 +26,7 @@ const PERMISSIONS = {
     "view_reports", "view_all",
   ],
   Manager: [
+    "update_trf",
     "upload_file", "delete_file", "download_file",
     "view_analytics", "view_reports", "view_all",
   ],

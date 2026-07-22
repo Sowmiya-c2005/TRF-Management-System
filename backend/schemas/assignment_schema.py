@@ -27,7 +27,7 @@ class TRFStatusUpdateRequest(BaseModel):
 
 
 class TRFStatusResponse(BaseModel):
-    trf_id: int
+    id: int
     trf_number: str
     status: str
     status_updated_at: Optional[datetime]

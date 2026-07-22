@@ -4,16 +4,18 @@ Production mode: serves React SPA from frontend/dist via StaticFiles.
 Run with:  uvicorn backend.main:app --reload
            python app.py
 """
+# Load .env FIRST — before any other imports so all os.getenv() calls in
+# middleware, services, and models pick up the correct values.
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Depends, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.orm import Session
-from dotenv import load_dotenv
 import os
-
-load_dotenv()
 
 # Setup logging before any imports that might use loggers
 from backend.utils.logging_config import setup_logging, get_logger
