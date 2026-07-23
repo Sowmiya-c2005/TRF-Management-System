@@ -24,24 +24,34 @@ def create_comment(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new comment or reply on a TRF."""
-    check_trf_id_access(db, current_user, payload.trf_id)
-    comment = comment_service.create_comment(
-        db,
-        payload.trf_id,
-        current_user.id,
-        payload.content,
-        payload.parent_id
-    )
-
-    # Resolve TRF number for activity/email logging
     from backend.repositories.trf_repository import TRFRepository
-    trf = TRFRepository().get(db, payload.trf_id)
-    trf_number = trf.trf_number if trf else f"ID:{payload.trf_id}"
+    trf_repo = TRFRepository()
+
+    # Resolve trf_id from trf_number if needed
+    if payload.trf_id:
+        trf_id = payload.trf_id
+        trf = trf_repo.get(db, trf_id)
+    elif payload.trf_number:
+        trf = trf_repo.get_by_number(db, payload.trf_number)
+        if not trf:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail=f"TRF '{payload.trf_number}' not found")
+        trf_id = trf.id
+    else:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=422, detail="Either trf_id or trf_number is required")
+
+    trf_number = trf.trf_number if trf else f"ID:{trf_id}"
+    check_trf_id_access(db, current_user, trf_id)
+
+    comment = comment_service.create_comment(
+        db, trf_id, current_user.id, payload.content, payload.parent_id
+    )
 
     # Log activity
     activity_service.log_activity(
         db,
-        trf_id=payload.trf_id,
+        trf_id=trf_id,
         user_id=current_user.id,
         action_type="COMMENT_ADDED",
         description=f"{current_user.username} added a comment on TRF {trf_number}"
@@ -51,10 +61,10 @@ def create_comment(
         db,
         user_id=current_user.id,
         action="CREATE_COMMENT",
-        details=f"User '{current_user.username}' added comment on TRF '{trf_number}' (ID {payload.trf_id})"
+        details=f"User '{current_user.username}' added comment on TRF '{trf_number}'"
     )
 
-    # Email admins when a comment is added
+    # Email admins when Engineer/Manager adds a comment
     try:
         email_comment_added(db, trf_number, payload.content, current_user.username, current_user.role)
     except Exception as email_err:
@@ -63,13 +73,23 @@ def create_comment(
     return comment
 
 
-@router.get("/trf/{trf_id}")
+@router.get("/trf/{trf_ref}")
 def get_trf_comments(
-    trf_id: int,
+    trf_ref: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get all top-level comments for a TRF."""
+    """Get all top-level comments for a TRF. Accepts either trf_id (int) or trf_number (string)."""
+    from backend.repositories.trf_repository import TRFRepository
+    # Try numeric ID first, then trf_number string
+    if trf_ref.isdigit():
+        trf_id = int(trf_ref)
+    else:
+        trf = TRFRepository().get_by_number(db, trf_ref)
+        if not trf:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail=f"TRF '{trf_ref}' not found")
+        trf_id = trf.id
     check_trf_id_access(db, current_user, trf_id)
     comments = comment_service.get_trf_comments(db, trf_id)
     return {"trf_id": trf_id, "comments": comments, "count": len(comments)}

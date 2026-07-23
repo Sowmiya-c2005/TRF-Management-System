@@ -49,6 +49,7 @@ import { useApp } from "../context/AppContext";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const KANBAN_COLUMNS = [
+  { id: "Draft",        label: "Draft",        color: "#94a3b8", emoji: "📝" },
   { id: "Assigned",     label: "Assigned",     color: "#f59e0b", emoji: "📋" },
   { id: "In Progress",  label: "In Progress",  color: "#06b6d4", emoji: "⚙️" },
   { id: "Under Review", label: "Under Review", color: "#a855f7", emoji: "🔍" },
@@ -59,6 +60,7 @@ const KANBAN_COLUMNS = [
 const PRIORITY_COLORS = { Critical: "#ef4444", High: "#f97316", Medium: "#f59e0b", Low: "#10b981" };
 
 const VALID_TRANSITIONS = {
+  Draft:          ["Assigned"],
   Assigned:       ["In Progress"],
   "In Progress":  ["Under Review"],
   "Under Review": ["Approved", "In Progress"],
@@ -812,9 +814,8 @@ export default function AssignedWorkspace() {
     load();
   };
 
-  const activeCols = KANBAN_COLUMNS.filter(col =>
-    trfs.some(t => t.status === col.id)
-  );
+  // Show all columns always so Draft TRFs are visible
+  const activeCols = KANBAN_COLUMNS;
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>

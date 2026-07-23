@@ -4,9 +4,10 @@ from datetime import datetime
 
 
 class CommentCreate(BaseModel):
-    trf_id: int = Field(..., description="TRF ID")
-    content: str = Field(..., min_length=1, description="Comment content")
-    parent_id: Optional[int] = Field(None, description="Parent comment ID for replies")
+    trf_id:     Optional[int] = Field(None, description="TRF ID (use this OR trf_number)")
+    trf_number: Optional[str] = Field(None, description="TRF number (use this OR trf_id)")
+    content:    str           = Field(..., min_length=1, description="Comment content")
+    parent_id:  Optional[int] = Field(None, description="Parent comment ID for replies")
 
 
 class CommentUpdate(BaseModel):
