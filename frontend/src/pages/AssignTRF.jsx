@@ -121,8 +121,9 @@ export default function AssignTRF() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [trfRes, userRes] = await Promise.all([getAllTRFs(), getAssignableUsers()]);
-        const allTrfs = Array.isArray(trfRes.data) ? trfRes.data : [];
+        const [trfRes, userRes] = await Promise.all([getAllTRFs({ per_page: 100 }), getAssignableUsers()]);
+        // getAllTRFs returns paginated { items: [...] } — handle both formats
+        const allTrfs = trfRes.data?.items ?? (Array.isArray(trfRes.data) ? trfRes.data : []);
         setTrfs(allTrfs);
         setManagers(userRes.data?.managers  || []);
         setEngineers(userRes.data?.engineers || []);
